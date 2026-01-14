@@ -62,11 +62,73 @@ beads:
 | ----- | ------------------------------- | ---------- | ------ | ----------------------------- |
 | R-001 | Break existing absolute paths   | Low        | High   | Preserve absolute path bypass |
 | R-002 | Config file path unavailable    | Low        | Medium | Fall back to dbPath directory |
+| R-003 | Sync-branch mode different CWD  | Medium     | High   | Test internal worktree context |
+| R-004 | External BEADS_DIR mode         | Medium     | Medium | Config discovery may differ |
+| R-005 | Daemon startup race condition   | Low        | Medium | Config loaded before CWD change |
 
 ## Unknowns
 
 - Whether `config.ConfigFileUsed()` is always set in daemon context
 - If dbPath is a better base than config file location
+
+## Test Matrix
+
+*Multi-dimensional test coverage for path resolution across all execution contexts.*
+
+### Dimension 1: Sync Modes (from docs/SYNC.md)
+
+| Mode | Trigger | Config Used | Test Focus |
+|------|---------|-------------|------------|
+| Normal | Default `bd sync` | Project `.beads/config.yaml` | repos.additional paths |
+| Sync-branch | `sync.branch` config | Project config | Daemon CWD in internal worktree |
+| External | `BEADS_DIR` env | External repo config | Config discovery across repos |
+| From-main | `sync.from_main` config | Main branch config | Branch-switching context |
+| Local-only | No git remote | Project config | Export path resolution |
+| Export-only | `--no-pull` flag | Project config | Skip-pull path handling |
+
+### Dimension 2: Execution Context
+
+| Context | CWD | Config Discovery | Risk |
+|---------|-----|------------------|------|
+| CLI from repo root | `/repo/` | Walks up, finds `.beads/` | Low |
+| CLI from .beads/ | `/repo/.beads/` | Immediate find | **HIGH** - Bug trigger |
+| CLI from subdirectory | `/repo/src/` | Walks up | Medium |
+| Daemon (normal) | `/repo/.beads/` | Set at startup | **HIGH** - Bug trigger |
+| Daemon (sync-branch) | Internal worktree | Different .beads location | High |
+| Worktree | `/repo/.worktrees/feat/` | Redirected | Medium |
+
+### Dimension 3: Path Types
+
+| Input Path | Expected Resolution | Notes |
+|------------|---------------------|-------|
+| `oss/` (relative) | `{repo}/oss/` | NOT `.beads/oss/` |
+| `./oss/` (explicit relative) | `{repo}/oss/` | Same as above |
+| `../sibling/` (parent-relative) | `{repo}/../sibling/` | For external_projects |
+| `/abs/path/` (absolute) | `/abs/path/` | Unchanged |
+| `~/path/` (tilde) | Expanded, then resolved | Two-step |
+
+### Dimension 4: Bug × Mode × Context Matrix
+
+| Bug | Mode | CWD | Expected | Test |
+|-----|------|-----|----------|------|
+| 1 (multi-repo) | Normal | repo root | ✓ Works | Baseline |
+| 1 (multi-repo) | Normal | `.beads/` | ❌ Fails | **Key test** |
+| 1 (multi-repo) | Daemon | `.beads/` | ❌ Fails | **Key test** |
+| 1 (multi-repo) | External | ext repo | ? Untested | New test |
+| 2 (worktree) | N/A | repo root | ❌ Fails | GH#1098 |
+| 2 (worktree) | N/A | subdirectory | ❌ Fails | Depth varies |
+| 3 (ext_projects) | Normal | repo root | ✓ Works | Baseline |
+| 3 (ext_projects) | Normal | `.beads/` | ❌ Fails | Same pattern |
+| 3 (ext_projects) | Daemon | `.beads/` | ❌ Fails | Same pattern |
+
+### Existing Test Files to Extend
+
+| File | Current Coverage | Add |
+|------|------------------|-----|
+| `sync_modes_test.go` | Mode transitions | CWD variation |
+| `sync_external_test.go` | BEADS_DIR mode | Multi-repo paths |
+| `worktree_cmd_test.go` | Basic creation | Depth variations |
+| `config_test.go` | Config loading | CWD mocking |
 
 ## Atomicity
 

@@ -40,18 +40,40 @@
 
 ## Phase 3: Test Coverage (MVS)
 
-**Goal**: Add comprehensive test coverage for fixes
+**Goal**: Comprehensive test coverage across all execution contexts
+
+### Unit Tests (mock CWD)
 
 | ID   | Task                                                | Parallel | Depends | Status  |
 | ---- | --------------------------------------------------- | -------- | ------- | ------- |
-| T030 | Add unit test for `CanonicalizeIfRelative()`        | -        | T023    | pending |
+| T030 | Add unit test for `CanonicalizeIfRelative()`        | -        | T025    | pending |
 | T031 | Add test: multirepo export with relative path       | [P]      | T030    | pending |
 | T032 | Add test: multirepo export with absolute path       | [P]      | T030    | pending |
 | T033 | Add test: multirepo export with empty config        | [P]      | T030    | pending |
-| T034 | Add test: worktree redirect at various depths       | [P]      | T030    | pending |
-| T035 | Run full test suite                                 | -        | T031-34 | pending |
+| T034 | Add test: worktree redirect at depths 1, 2, 3       | [P]      | T030    | pending |
+| T035 | Add test: external_projects path resolution         | [P]      | T030    | pending |
 
-**Validation**: `go test -v ./... -run "Canonicalize|Export|Worktree"` passes
+### CWD Variation Tests (key regression tests)
+
+| ID   | Task                                                | Parallel | Depends | Status  |
+| ---- | --------------------------------------------------- | -------- | ------- | ------- |
+| T040 | Test: repos.additional from repo root               | -        | T035    | pending |
+| T041 | Test: repos.additional from `.beads/` directory     | [P]      | T040    | pending |
+| T042 | Test: repos.additional from subdirectory            | [P]      | T040    | pending |
+
+### Sync Mode Tests (E2E)
+
+| ID   | Task                                                | Parallel | Depends | Status  |
+| ---- | --------------------------------------------------- | -------- | ------- | ------- |
+| T050 | Test: Normal sync mode path resolution              | -        | T042    | pending |
+| T051 | Test: Sync-branch mode with daemon                  | [P]      | T050    | pending |
+| T052 | Test: External BEADS_DIR mode                       | [P]      | T050    | pending |
+| T053 | Run full test suite                                 | -        | T051-52 | pending |
+
+**Validation**:
+- `go test -v ./... -run "Canonicalize|Export|Worktree"` passes
+- `go test -v ./cmd/bd/... -run "SyncMode"` passes
+- E2E tests pass with daemon running
 
 ---
 

@@ -63,6 +63,9 @@ NFR-010: THE SYSTEM SHALL have a single source of truth for path canonicalizatio
 | AC-002 | `bd worktree create .trees/a/b` generates correct depth | Verify redirect contains `../../../../.beads` |
 | AC-003 | Existing absolute path configs continue to work         | Unit test with absolute path                  |
 | AC-004 | `autoflush.go` uses extracted helper                    | Code review                                   |
+| AC-005 | Daemon mode exports to correct paths                    | E2E test with daemon running from `.beads/`   |
+| AC-006 | Sync-branch mode paths resolve correctly                | Test with `sync.branch` configured            |
+| AC-007 | External BEADS_DIR mode paths resolve correctly         | Test with `BEADS_DIR` pointing to external    |
 
 ## Out of Scope
 
