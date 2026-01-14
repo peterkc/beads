@@ -1,0 +1,1 @@
+# Beads Semantic Search Index
