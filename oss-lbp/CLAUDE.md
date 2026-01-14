@@ -11,11 +11,15 @@ phases:
     type: tracer
     status: pending
 
-  - name: 'Phase 2: Fix Both Bugs'
+  - name: 'Phase 2: Fix All Bugs'
     type: mvs
     status: pending
 
-  - name: 'Phase 3: Test Coverage'
+  - name: 'Phase 3a: Unit Tests'
+    type: mvs
+    status: pending
+
+  - name: 'Phase 3b: Integration Tests'
     type: mvs
     status: pending
 

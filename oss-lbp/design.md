@@ -148,6 +148,19 @@ import "github.com/steveyegge/beads/internal/utils"
 // Replace calls: canonicalizeIfRelative(x) → utils.CanonicalizeIfRelative(x)
 ```
 
+## Rollback Strategy
+
+**Commit Structure**: Separate commits per fix for granular rollback.
+
+| Phase | Commit | Rollback |
+|-------|--------|----------|
+| 1 | `refactor: extract CanonicalizeIfRelative to utils` | `git revert <sha>` |
+| 2a | `fix(multirepo): resolve paths from repo root` | `git revert <sha>` |
+| 2b | `fix(worktree): ensure absolute paths for redirect` | `git revert <sha>` |
+| 2c | `fix(config): resolve external_projects from repo root` | `git revert <sha>` |
+
+Each fix is independently revertible. If Bug 1 fix works but Bug 2 breaks, revert only the worktree commit.
+
 ## Error Handling
 
 | Error Condition              | Handling Strategy                     |

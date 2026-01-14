@@ -13,8 +13,8 @@
 
 **Validation**:
 - `go build ./...` succeeds
-- `go test ./...` passes
-- `autoflush.go` behavior unchanged
+- `go test -v ./cmd/bd/... -run AutoFlush` passes (existing behavior unchanged)
+- No import cycles introduced
 
 ---
 
@@ -38,11 +38,9 @@
 
 ---
 
-## Phase 3: Test Coverage (MVS)
+## Phase 3a: Unit Test Coverage (MVS)
 
-**Goal**: Comprehensive test coverage across all execution contexts
-
-### Unit Tests (mock CWD)
+**Goal**: Unit tests for helper and bug fixes with mock CWD
 
 | ID   | Task                                                | Parallel | Depends | Status  |
 | ---- | --------------------------------------------------- | -------- | ------- | ------- |
@@ -52,6 +50,17 @@
 | T033 | Add test: multirepo export with empty config        | [P]      | T030    | pending |
 | T034 | Add test: worktree redirect at depths 1, 2, 3       | [P]      | T030    | pending |
 | T035 | Add test: external_projects path resolution         | [P]      | T030    | pending |
+
+**Validation**:
+- `go test -v ./internal/utils/... -run Canonicalize` passes
+- `go test -v ./internal/storage/sqlite/... -run Export` passes
+- `go test -v ./cmd/bd/... -run Worktree` passes
+
+---
+
+## Phase 3b: Integration & E2E Tests (MVS)
+
+**Goal**: CWD variation and sync mode integration tests
 
 ### CWD Variation Tests (key regression tests)
 
@@ -71,33 +80,43 @@
 | T053 | Run full test suite                                 | -        | T051-52 | pending |
 
 **Validation**:
-- `go test -v ./... -run "Canonicalize|Export|Worktree"` passes
+- `go test -v ./... -run "CWDVariation"` passes
 - `go test -v ./cmd/bd/... -run "SyncMode"` passes
-- E2E tests pass with daemon running
+- `cd .beads && bd sync` produces same export paths as `bd sync` from repo root
 
 ---
 
 ## Dependency Graph
 
 ```
+Phase 1: Extract Helper
 T010 ─> T011 ─> T012 ─> T013
                           │
-              ┌───────────┴───────────┐
-              ▼                       ▼
-            T020                    T021
-              │                       │
-              ▼                       ▼
-            T022                    T023
-              │                       │
-              └───────────┬───────────┘
+Phase 2: Fix All Bugs     │
+              ┌───────────┼───────────┐
+              ▼           ▼           ▼
+            T020        T021        T024
+              │           │           │
+              ▼           ▼           ▼
+            T022        T023        T025
+              │           │           │
+              └───────────┴───────────┘
+                          │
+Phase 3a: Unit Tests      │
                           ▼
                         T030
                           │
           ┌───────┬───────┼───────┬───────┐
           ▼       ▼       ▼       ▼       ▼
-        T031    T032    T033    T034     ...
-          │       │       │       │
-          └───────┴───────┴───────┴─> T035
+        T031    T032    T033    T034    T035
+              (all [P] - parallel)
+                          │
+Phase 3b: Integration     │
+                          ▼
+            T040 ─> T041/T042 (parallel)
+                          │
+                          ▼
+            T050 ─> T051/T052 (parallel) ─> T053
 ```
 
 ## Files to Modify
@@ -108,6 +127,8 @@ T010 ─> T011 ─> T012 ─> T013
 | 1     | `cmd/bd/autoflush.go`                             | Refactor    |
 | 2     | `internal/storage/sqlite/multirepo_export.go`     | Fix         |
 | 2     | `cmd/bd/worktree_cmd.go`                          | Fix         |
-| 3     | `internal/utils/path_test.go`                     | Add tests   |
-| 3     | `internal/storage/sqlite/multirepo_export_test.go`| Add tests   |
-| 3     | `cmd/bd/worktree_cmd_test.go`                     | Add tests   |
+| 2     | `internal/config/config.go`                       | Fix         |
+| 3a    | `internal/utils/path_test.go`                     | Add tests   |
+| 3a    | `internal/storage/sqlite/multirepo_export_test.go`| Add tests   |
+| 3a    | `cmd/bd/worktree_cmd_test.go`                     | Add tests   |
+| 3b    | `cmd/bd/sync_test.go` (or new file)               | Add E2E     |
