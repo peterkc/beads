@@ -1,34 +1,57 @@
-# Tasks: Fix Multi-repo Export Path Resolution
+# Tasks: Fix Path Resolution Bugs
 
-## Phase 1: Tracer Bullet
+## Phase 1: Extract Helper (Tracer Bullet)
 
-**Goal**: Implement fix and verify basic functionality
+**Goal**: Extract `canonicalizeIfRelative` to utils and verify build
 
-| ID   | Task                                           | Parallel | Status  |
-| ---- | ---------------------------------------------- | -------- | ------- |
-| T010 | Modify `exportToRepo()` path resolution logic  | -        | pending |
-| T011 | Add config directory resolution with fallback  | -        | pending |
-| T012 | Run existing tests to verify no regression     | -        | pending |
-| T013 | Manual test: `bd sync` from different CWDs     | -        | pending |
+| ID   | Task                                                | Parallel | Status  |
+| ---- | --------------------------------------------------- | -------- | ------- |
+| T010 | Add `CanonicalizeIfRelative()` to `utils/path.go`   | -        | pending |
+| T011 | Update `autoflush.go` to use `utils.Canonicalize…`  | -        | pending |
+| T012 | Run `go build ./...` to verify no import cycles     | -        | pending |
+| T013 | Run existing tests to verify no regression          | -        | pending |
 
 **Validation**:
-- `go test ./internal/storage/sqlite/...` passes
-- `bd sync` from repo root produces same result as from `.beads/`
+- `go build ./...` succeeds
+- `go test ./...` passes
+- `autoflush.go` behavior unchanged
 
 ---
 
-## Phase 2: Test Coverage
+## Phase 2: Fix All Bugs (MVS)
 
-**Goal**: Add targeted test coverage for the fix
+**Goal**: Apply fixes using consistent repo-root resolution
 
-| ID   | Task                                          | Parallel | Depends | Status  |
-| ---- | --------------------------------------------- | -------- | ------- | ------- |
-| T020 | Add unit test: relative path + config dir     | -        | T013    | pending |
-| T021 | Add unit test: absolute path bypass           | [P]      | T020    | pending |
-| T022 | Add unit test: empty config fallback to dbPath| [P]      | T020    | pending |
-| T023 | Add test: tilde expansion + relative          | [P]      | T020    | pending |
+| ID   | Task                                                | Parallel | Depends | Status  |
+| ---- | --------------------------------------------------- | -------- | ------- | ------- |
+| T020 | Fix `multirepo_export.go` path resolution           | -        | T013    | pending |
+| T021 | Fix `worktree_cmd.go` redirect computation          | [P]      | T013    | pending |
+| T024 | Fix `config.go:ResolveExternalProjectPath` (same bug)| [P]      | T013    | pending |
+| T022 | Manual test: `bd sync` from different CWDs          | -        | T020    | pending |
+| T023 | Manual test: `bd worktree create .trees/a/b`        | -        | T021    | pending |
+| T025 | Manual test: external_projects from different CWDs  | -        | T024    | pending |
 
-**Validation**: `go test -v ./internal/storage/sqlite/... -run Export` passes
+**Validation**:
+- `bd sync` from repo root and `.beads/` produce same result
+- Worktree redirect at depth 3+ has correct `../` count
+- `external_projects` paths resolve correctly regardless of CWD
+
+---
+
+## Phase 3: Test Coverage (MVS)
+
+**Goal**: Add comprehensive test coverage for fixes
+
+| ID   | Task                                                | Parallel | Depends | Status  |
+| ---- | --------------------------------------------------- | -------- | ------- | ------- |
+| T030 | Add unit test for `CanonicalizeIfRelative()`        | -        | T023    | pending |
+| T031 | Add test: multirepo export with relative path       | [P]      | T030    | pending |
+| T032 | Add test: multirepo export with absolute path       | [P]      | T030    | pending |
+| T033 | Add test: multirepo export with empty config        | [P]      | T030    | pending |
+| T034 | Add test: worktree redirect at various depths       | [P]      | T030    | pending |
+| T035 | Run full test suite                                 | -        | T031-34 | pending |
+
+**Validation**: `go test -v ./... -run "Canonicalize|Export|Worktree"` passes
 
 ---
 
@@ -37,15 +60,32 @@
 ```
 T010 ─> T011 ─> T012 ─> T013
                           │
+              ┌───────────┴───────────┐
+              ▼                       ▼
+            T020                    T021
+              │                       │
+              ▼                       ▼
+            T022                    T023
+              │                       │
+              └───────────┬───────────┘
                           ▼
-            T020 ─┬─> T021 ─┐
-                  ├─> T022 ─┼─> (complete)
-                  └─> T023 ─┘
+                        T030
+                          │
+          ┌───────┬───────┼───────┬───────┐
+          ▼       ▼       ▼       ▼       ▼
+        T031    T032    T033    T034     ...
+          │       │       │       │
+          └───────┴───────┴───────┴─> T035
 ```
 
 ## Files to Modify
 
 | Phase | File                                              | Change Type |
 | ----- | ------------------------------------------------- | ----------- |
-| 1     | `internal/storage/sqlite/multirepo_export.go`     | Modify      |
-| 2     | `internal/storage/sqlite/multirepo_export_test.go`| Add/Extend  |
+| 1     | `internal/utils/path.go`                          | Add func    |
+| 1     | `cmd/bd/autoflush.go`                             | Refactor    |
+| 2     | `internal/storage/sqlite/multirepo_export.go`     | Fix         |
+| 2     | `cmd/bd/worktree_cmd.go`                          | Fix         |
+| 3     | `internal/utils/path_test.go`                     | Add tests   |
+| 3     | `internal/storage/sqlite/multirepo_export_test.go`| Add tests   |
+| 3     | `cmd/bd/worktree_cmd_test.go`                     | Add tests   |

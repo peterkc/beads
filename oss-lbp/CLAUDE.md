@@ -1,5 +1,5 @@
 ---
-title: 'Fix Multi-repo Export Path Resolution'
+title: 'Fix Path Resolution Bugs (oss-lbp + GH#1098)'
 status: draft
 spec_type: implementation
 created: '2026-01-14'
@@ -7,34 +7,54 @@ created: '2026-01-14'
 skills: [golang]
 
 phases:
-  - name: 'Phase 1: Tracer Bullet'
+  - name: 'Phase 1: Extract Helper'
     type: tracer
     status: pending
 
-  - name: 'Phase 2: Test Coverage'
+  - name: 'Phase 2: Fix Both Bugs'
+    type: mvs
+    status: pending
+
+  - name: 'Phase 3: Test Coverage'
     type: mvs
     status: pending
 
 beads:
   issue: oss-lbp
+  related: [oss-3ui]
 ---
 
-# Fix Multi-repo Export Path Resolution
+# Fix Path Resolution Bugs
 
-> Resolve relative paths in multi-repo export from config file directory instead of CWD.
+> Extract `canonicalizeIfRelative` to utils and fix two related path resolution bugs.
+
+**Upstream**: [GH#1098](https://github.com/steveyegge/beads/issues/1098) (worktree redirect depth)
 
 ## Success Criteria
 
-| ID     | Criterion                                          | Validation                          |
-| ------ | -------------------------------------------------- | ----------------------------------- |
-| SC-001 | Relative paths resolve from config directory       | Unit test with mock CWD             |
-| SC-002 | Existing tests pass                                | `go test ./...`                     |
-| SC-003 | No spurious directories created in daemon context | Manual test with `bd sync --daemon` |
+| ID     | Criterion                                          | Validation                              |
+| ------ | -------------------------------------------------- | --------------------------------------- |
+| SC-001 | Helper extracted to utils/                         | `go build ./...`                        |
+| SC-002 | Multi-repo export uses config dir base             | Unit test with mock CWD                 |
+| SC-003 | Worktree redirect has correct depth                | `bd worktree create .trees/deep/nested` |
+| SC-004 | Existing tests pass                                | `go test ./...`                         |
+| SC-005 | No spurious directories in daemon context          | Manual test with `bd sync --daemon`     |
 
 ## Scope
 
+**Bug 1 (oss-lbp)**: Multi-repo export resolves from CWD
 - `internal/storage/sqlite/multirepo_export.go:121`
-- `internal/storage/sqlite/multirepo_export_test.go` (new/extend)
+
+**Bug 2 (GH#1098)**: Worktree redirect depth incorrect
+- `cmd/bd/worktree_cmd.go:205`
+
+**Bug 3 (discovered)**: Same CWD bug in external_projects resolution
+- `internal/config/config.go:456-461` (ResolveExternalProjectPath)
+- Comment says "from config file location or cwd" but only uses CWD
+
+**Shared helper**:
+- `internal/utils/path.go` (extract from autoflush.go)
+- `cmd/bd/autoflush.go` (update to use utils)
 
 ## Risks
 
