@@ -11,11 +11,11 @@ location:
   path: daemon-docs-subcommand-syntax
 
 beads:
-  epic: oss-3v9
+  epic: oss-7ni
   phases:
-    - oss-7cv  # Phase 1: Tracer Bullet
-    - oss-7mj  # Phase 2: Bulk Updates
-    - oss-ign  # Phase 3: Verification
+    - oss-34m  # Phase 1: Tracer Bullet
+    - oss-e5q  # Phase 2: Bulk Updates
+    - oss-0jo  # Phase 3: Verification
   worktree_path: .worktrees/daemon-docs
   worktree_branch: docs/daemon-subcommand-syntax
 
