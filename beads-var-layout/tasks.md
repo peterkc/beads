@@ -21,21 +21,25 @@
 ```bash
 # Unit tests
 go test ./internal/beads/... -v -run TestVarPath
+# Expected: PASS
 
 # End-to-end: New user path
 cd $(mktemp -d) && git init && bd init
-ls .beads/var/          # var/ exists
-bd list                 # Works with var/ layout
+ls .beads/var/          # Expected: beads.db exists
+bd list                 # Expected: "No issues found" or empty list
+cat .beads/metadata.json | grep layout  # Expected: "layout": "v2"
 
 # End-to-end: Legacy path
 cd $(mktemp -d) && git init && bd init --legacy
-ls .beads/              # No var/, flat layout
-bd list                 # Works with legacy layout
+ls .beads/              # Expected: beads.db at root, no var/
+bd list                 # Expected: "No issues found" or empty list
 
 # End-to-end: Existing legacy user
 # (use existing .beads/ without var/)
-bd list                 # Still works, no regression
+bd list                 # Expected: Works, no regression
 ```
+
+**If validation fails**: `bd doctor --verbose` to diagnose
 
 **Why This Tracer**:
 - Touches all layers: new module → existing consumer → CLI → file system
@@ -71,39 +75,59 @@ bd sync  # Verify sync works
 
 ---
 
-## Phase 3: Doctor & Migration Command (MVS)
+## Phase 3a: Doctor Detection (MVS)
 
-**Goal**: Add migration detection, `bd migrate var`, and doctor --fix for strays
+**Goal**: Add migration detection and doctor --fix for stray files
 
 | ID   | Task                                  | Parallel | Status  |
 | ---- | ------------------------------------- | -------- | ------- |
 | T020 | Add needsVarMigration() detection     | -        | pending |
 | T021 | Add FilesInWrongLocation() detection  | -        | pending |
 | T022 | Add to DetectPendingMigrations()      | -        | pending |
-| T023 | Create cmd/bd/migrate_var.go          | -        | pending |
-| T024 | Implement runVarMigration()           | -        | pending |
-| T025 | Implement --dry-run flag              | -        | pending |
-| T026 | Add stray file fix to doctor --fix    | -        | pending |
-| T027 | Update GitignoreTemplate              | -        | pending |
-| T028 | Add var/ to requiredPatterns          | -        | pending |
-| T029 | Create migration tests                | -        | pending |
+| T023 | Add stray file fix to doctor --fix    | -        | pending |
+| T024 | Update GitignoreTemplate              | -        | pending |
+| T025 | Add var/ to requiredPatterns          | -        | pending |
 
 **Validation**:
 
 ```bash
 # Legacy user sees option
-bd doctor  # "ℹ Optional: var/ layout available"
+bd doctor  # Expected: "ℹ Optional: var/ layout available"
 
-# Migration workflow
-bd migrate var --dry-run  # Preview changes
-bd migrate var            # Execute migration
-bd doctor                 # No warnings
-
-# Stray file cleanup
-touch .beads/stray.db     # Simulate external tool
-bd doctor                 # "⚠ 1 file in wrong location"
-bd doctor --fix           # Moves to var/
+# Stray file cleanup (after manual var/ creation)
+mkdir -p .beads/var && touch .beads/stray.db
+bd doctor                 # Expected: "⚠ 1 file in wrong location"
+bd doctor --fix           # Expected: Moves stray.db to var/
 ```
+
+**If validation fails**: `bd doctor --verbose`
+
+---
+
+## Phase 3b: Migration Command (MVS)
+
+**Goal**: Implement `bd migrate var` command
+
+| ID   | Task                                  | Parallel | Status  |
+| ---- | ------------------------------------- | -------- | ------- |
+| T030 | Create cmd/bd/migrate_var.go          | -        | pending |
+| T031 | Implement runVarMigration()           | -        | pending |
+| T032 | Implement --dry-run flag              | -        | pending |
+| T033 | Create migration tests                | -        | pending |
+
+**Validation**:
+
+```bash
+# Dry run
+bd migrate var --dry-run  # Expected: "Would create var/", "Would move 12 files"
+
+# Execute migration
+bd migrate var            # Expected: "Created var/", "Moved 12 files"
+bd doctor                 # Expected: No warnings
+ls .beads/var/            # Expected: beads.db, daemon.*, etc.
+```
+
+**If validation fails**: `bd doctor --verbose`
 
 ---
 
@@ -166,7 +190,6 @@ paths.go  │    IsVar   DB only  init   --legacy  tests
        VarPath  Layout           var/    flag
                                                     │
                       TRACER VALIDATION GATE        ▼
-                      (bd list works both layouts)
                                                     │
 Phase 2: Remaining Consumers                        ▼
 ─────────────────────────────────────────────────────────────
@@ -178,18 +201,25 @@ Phase 2: Remaining Consumers                        ▼
            │
       (all parallel)
                                                     │
-Phase 3: Doctor & Migration                         ▼
+Phase 3a: Doctor Detection                          ▼
 ─────────────────────────────────────────────────────────────
-T020 ─> T021 ─> T022 ─> T023 ─> T024 ─> T026 ─> T027 ─> T028
-  │       │       │       │       │       │       │
-needs   detect  migrate  run    dry-run  git    patterns tests
-VarMig  pending  .go     Mig            ignore
+T020 ─> T021 ─> T022 ─> T023 ─> T024 ─> T025
+  │       │       │       │       │       │
+needs   files   detect  --fix   git    patterns
+VarMig  wrong   pending         ignore
+                                                    │
+Phase 3b: Migration Command                         ▼
+─────────────────────────────────────────────────────────────
+T030 ─> T031 ─> T032 ─> T033
+  │       │       │       │
+migrate  run    dry-run  tests
+.go      Mig
                                                     │
 Phase 4: Docs & Tests                               ▼
 ─────────────────────────────────────────────────────────────
-T030 ─┬─> T031 ─┬─> T034 ─> T035
-  │   ├─> T032 ─┤     │       │
-ARCH  │   └─> T033 ─┘  mixed  CHANGELOG
+T040 ─┬─> T041 ─┬─> T044 ─> T045
+  │   ├─> T042 ─┤     │       │
+ARCH  │   └─> T043 ─┘  mixed  CHANGELOG
       │         │      sync
    TROUBLE   integ
    SHOOT     tests

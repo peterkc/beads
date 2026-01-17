@@ -37,10 +37,15 @@ phases:
     status: pending
     description: 'Update 5 remaining consumer files to use VarPath()'
 
-  - name: 'Phase 3: Doctor & Migration'
+  - name: 'Phase 3a: Doctor Detection'
     type: mvs
     status: pending
-    description: 'bd migrate var command + doctor --fix for strays'
+    description: 'needsVarMigration(), FilesInWrongLocation(), doctor --fix'
+
+  - name: 'Phase 3b: Migration Command'
+    type: mvs
+    status: pending
+    description: 'bd migrate var command with --dry-run'
 
   - name: 'Phase 4: Documentation & Tests'
     type: mvs
