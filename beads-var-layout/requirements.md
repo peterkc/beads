@@ -107,10 +107,17 @@ THE SYSTEM SHALL use VarPathForWrite() which respects layout preference without 
 FR-064: THE SYSTEM SHALL NOT fail if volatile files exist in both locations simultaneously.
 
 FR-065: WHEN bd doctor runs AND var/ layout is active AND volatile files exist at root
-THE SYSTEM SHALL report "files in wrong location" as info (Priority 4).
+THE SYSTEM SHALL report "files in wrong location" as warning (Priority 2).
 
 FR-066: WHEN bd doctor --fix runs AND files are in wrong location
-THE SYSTEM SHALL offer to move them to var/ (with user confirmation).
+THE SYSTEM SHALL move them to var/ automatically (consistent with other --fix behavior).
+
+FR-067: WHEN bd doctor runs AND var/ layout is NOT active
+THE SYSTEM SHALL report var/ migration as optional info (Priority 4).
+
+FR-068: THE SYSTEM SHALL use `bd migrate var` for initial migration (creates var/).
+
+FR-069: THE SYSTEM SHALL use `bd doctor --fix` for stray file cleanup (var/ already exists).
 
 ## Non-Functional Requirements
 

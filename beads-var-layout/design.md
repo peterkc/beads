@@ -289,15 +289,15 @@ var migrateVarCmd = &cobra.Command{
 This organizes machine-local files (database, daemon, sync state) into
 .beads/var/, separating them from git-tracked files.
 
-The migration is safe and reversible. Old files are preserved until
-you run 'bd migrate var --cleanup' after verifying everything works.`,
+The migration copies files to var/ and removes originals. Use --dry-run
+to preview changes first. If stray files appear later at root, use
+'bd doctor --fix' to move them.`,
     Run: runMigrateVar,
 }
 
 func init() {
     migrateCmd.AddCommand(migrateVarCmd)
     migrateVarCmd.Flags().Bool("dry-run", false, "Preview changes without modifying files")
-    migrateVarCmd.Flags().Bool("cleanup", false, "Remove old files after successful migration")
 }
 ```
 
@@ -335,10 +335,10 @@ func FilesInWrongLocation(beadsDir string) []string {
 if files := FilesInWrongLocation(beadsDir); len(files) > 0 {
     issues = append(issues, MigrationIssue{
         Name:        "files-wrong-location",
-        Priority:    4,  // Info level
+        Priority:    2,  // Warning (fixable)
         Description: fmt.Sprintf("%d volatile files at root should be in var/", len(files)),
         Files:       files,
-        Fix:         "bd migrate var --cleanup",
+        Fix:         "bd doctor --fix",  // Doctor handles stray cleanup
     })
 }
 ```
