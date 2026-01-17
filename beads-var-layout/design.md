@@ -241,11 +241,20 @@ func VarDir(beadsDir string) string {
     return beadsDir
 }
 
-// IsVarLayout checks if .beads uses the var/ layout.
-func IsVarLayout(beadsDir string) bool {
+// IsVarLayout checks if .beads uses the var/ layout via metadata.json.
+// Note: Requires metadata to be loaded first. For bootstrap scenarios
+// (before metadata exists), falls back to checking var/ directory.
+func IsVarLayout(beadsDir string, meta *Metadata) bool {
     if os.Getenv("BD_LEGACY_LAYOUT") == "1" {
         return false
     }
+
+    // Primary: check layout field in metadata
+    if meta != nil {
+        return meta.Layout == "v2"
+    }
+
+    // Fallback: check var/ directory (bootstrap/migration scenarios)
     varDir := filepath.Join(beadsDir, "var")
     info, err := os.Stat(varDir)
     return err == nil && info.IsDir()

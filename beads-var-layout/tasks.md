@@ -254,10 +254,16 @@ func VarPathForWrite(beadsDir, filename string) string {
     return filepath.Join(beadsDir, filename)
 }
 
-func IsVarLayout(beadsDir string) bool {
+// IsVarLayout checks layout field in metadata.json
+// Falls back to var/ directory check for bootstrap scenarios
+func IsVarLayout(beadsDir string, meta *Metadata) bool {
     if os.Getenv("BD_LEGACY_LAYOUT") == "1" {
         return false
     }
+    if meta != nil {
+        return meta.Layout == "v2"
+    }
+    // Fallback for bootstrap
     varDir := filepath.Join(beadsDir, "var")
     info, err := os.Stat(varDir)
     return err == nil && info.IsDir()

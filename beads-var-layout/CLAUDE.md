@@ -20,25 +20,25 @@ beads:
   worktree_branch: feature/beads-var-layout
 
 phases:
-  - name: 'Phase 1: Centralized Paths Module'
+  - name: 'Phase 1: End-to-End Tracer'
     type: tracer
     status: pending
-    description: 'Create internal/beads/paths.go with VarPath(), IsVarLayout()'
+    description: 'paths.go + DatabasePath + bd init var/ default + layout:v2'
 
-  - name: 'Phase 2: Consumer Migration'
+  - name: 'Phase 2: Remaining Consumers'
     type: mvs
     status: pending
-    description: 'Update 6 consumer files to use VarPath()'
+    description: 'Update 5 remaining consumer files to use VarPath()'
 
-  - name: 'Phase 3: Doctor & Migration Command'
+  - name: 'Phase 3: Doctor & Migration'
     type: mvs
     status: pending
-    description: 'Add needsVarMigration() detection and bd migrate var command'
+    description: 'bd migrate var command + doctor --fix for strays'
 
   - name: 'Phase 4: Documentation & Tests'
     type: mvs
     status: pending
-    description: 'Update docs/ARCHITECTURE.md, add integration tests'
+    description: 'ARCHITECTURE.md, integration tests, test matrices'
 
   - name: 'Phase 5: Closing'
     type: closing
@@ -64,20 +64,23 @@ phases:
 
 **New Files:**
 
-- `internal/beads/paths.go` — Centralized volatile file path resolution
+- `internal/beads/paths.go` — Centralized volatile file path resolution (read-both pattern)
 - `internal/beads/paths_test.go` — Unit tests
+- `internal/configfile/layout.go` — Layout versioning (v1/v2)
 - `cmd/bd/migrate_var.go` — Migration command
 
 **Modified Files:**
 
-- `cmd/bd/doctor/migration.go` — Add `needsVarMigration()` detection
+- `cmd/bd/init.go` — Create var/ by default, add `--legacy` flag
+- `cmd/bd/doctor/migration.go` — Add `needsVarMigration()`, `FilesInWrongLocation()`
 - `cmd/bd/doctor/gitignore.go` — Update `GitignoreTemplate`
-- `internal/configfile/configfile.go` — Update `DatabasePath()`
+- `internal/configfile/configfile.go` — Update `DatabasePath()`, add `layout` field
 - `cmd/bd/daemon_config.go` — Update daemon file paths
 - `internal/rpc/socket_path.go` — Update socket path
 - `cmd/bd/sync_merge.go` — Update sync file paths
-- `cmd/bd/daemon_sync_state.go` — Update sync state pathWi
+- `cmd/bd/daemon_sync_state.go` — Update sync state paths
 - `internal/lockfile/lock.go` — Update lock file paths
+- `docs/ARCHITECTURE.md` — Update directory structure diagram
 - `docs/ARCHITECTURE.md` — Update directory structure diagram
 
 ## Directory Layout (After Migration)
