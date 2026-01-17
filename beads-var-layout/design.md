@@ -408,10 +408,36 @@ git push                     NOT FOUND ✗
 ```
 
 **Mitigations**:
-1. Old bd (< v0.48.0) fails gracefully: "Please upgrade to bd v0.48.0+"
-2. Add `min_bd_version` to `.beads/metadata.json` (future enhancement)
-3. Doctor warns if layout requires newer bd
-4. Document breaking change in v0.48.0 release notes
+1. Store `min_bd_version` in `.beads/metadata.json` (no hardcoded versions)
+2. bd checks min_bd_version at startup, fails with clear message
+3. Doctor warns if current bd < min_bd_version
+4. Document in release notes
+
+**Implementation**:
+```json
+// .beads/metadata.json (after var/ migration or init)
+{
+  "name": "my-project",
+  "min_bd_version": "0.48.0"
+}
+```
+
+```go
+// internal/configfile/version_check.go
+func CheckMinVersion(meta *Metadata) error {
+    if meta.MinBDVersion == "" {
+        return nil  // Legacy repo, no requirement
+    }
+    if version.Compare(Version, meta.MinBDVersion) < 0 {
+        return fmt.Errorf("This repo requires bd %s+ (you have %s)",
+            meta.MinBDVersion, Version)
+    }
+    return nil
+}
+```
+
+**Note**: Old bd (v0.47.x) ignores unknown fields in metadata.json but will fail
+with "database not found" — not ideal but unavoidable without hardcoding.
 
 ## Gotchas
 
