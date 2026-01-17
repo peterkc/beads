@@ -379,9 +379,200 @@ No data model changes. File system layout only.
 - SQLite creates sibling files (`.db-journal`, `.db-wal`) — they follow db location automatically
 - `export_hashes.db` is separate from main database — must also move to var/
 
+## Workflow Paths
+
+### Path A: New User (Fresh Install)
+
+```
+bd init
+    │
+    ▼
+Creates .beads/ (legacy layout)
+    │
+    ▼
+bd doctor
+    │
+    ▼
+"ℹ Optional: var/ layout available"
+    │
+    ├── User ignores ──► Continues with legacy layout
+    │                         │
+    │                         ▼
+    │                    All commands work ✓
+    │
+    └── User opts in
+            │
+            ▼
+        bd migrate var --dry-run
+            │
+            ▼
+        bd migrate var
+            │
+            ▼
+        .beads/var/ created, files moved
+            │
+            ▼
+        All commands work ✓
+```
+
+### Path B: Existing User Migration
+
+```
+Existing .beads/ (legacy layout)
+    │
+    ▼
+Upgrade bd to version with var/ support
+    │
+    ▼
+bd doctor
+    │
+    ▼
+"ℹ Optional: var/ layout available"
+    │
+    ├── User ignores ──► No change, legacy continues working
+    │
+    └── User opts in
+            │
+            ▼
+        bd daemon stop (if running)
+            │
+            ▼
+        bd migrate var
+            │
+            ▼
+        .beads/var/ created
+        15 files moved
+            │
+            ▼
+        bd daemon start
+            │
+            ▼
+        Verify: bd list, bd show, bd sync
+```
+
+### Path C: Stray File Cleanup
+
+```
+.beads/var/ exists (migrated)
+    │
+    ▼
+External tool writes to .beads/beads.db (root)
+    │
+    ▼
+bd doctor
+    │
+    ▼
+"⚠ 1 file in wrong location"
+    │
+    ├── bd doctor --fix ──► File moved to var/ ✓
+    │
+    └── User ignores ──► VarPath() reads from root (fallback) ✓
+```
+
+### Path D: Read-Both Fallback
+
+```
+VarPath("beads.db") called
+    │
+    ▼
+BD_LEGACY_LAYOUT=1 set? ──yes──► Return .beads/beads.db
+    │
+    no
+    │
+    ▼
+.beads/var/beads.db exists? ──yes──► Return .beads/var/beads.db
+    │
+    no
+    │
+    ▼
+.beads/beads.db exists? ──yes──► Return .beads/beads.db (fallback)
+    │
+    no
+    │
+    ▼
+IsVarLayout()? ──yes──► Return .beads/var/beads.db (new file)
+    │
+    no
+    │
+    ▼
+Return .beads/beads.db (new file, legacy)
+```
+
+## Test Matrix
+
+### Layout Compatibility Matrix
+
+| Test | Legacy Layout | var/ Layout | Expected |
+|------|---------------|-------------|----------|
+| `bd init` | Creates .beads/ | Creates .beads/ | Legacy default |
+| `bd list` | Works | Works | Same output |
+| `bd create` | Works | Works | Issue created |
+| `bd show` | Works | Works | Issue displayed |
+| `bd sync` | Works | Works | Sync completes |
+| `bd daemon start` | Works | Works | Daemon starts |
+| `bd daemon stop` | Works | Works | Daemon stops |
+| `bd doctor` | Shows var/ option | No var/ warning | Layout-specific |
+| `bd config` | Works | Works | Same behavior |
+
+### Migration Test Matrix
+
+| Scenario | Input State | Command | Expected Output |
+|----------|-------------|---------|-----------------|
+| Fresh migrate | Legacy, no var/ | `bd migrate var` | var/ created, files moved |
+| Dry run | Legacy, no var/ | `bd migrate var --dry-run` | Preview only, no changes |
+| Already migrated | var/ exists | `bd migrate var` | Exit 0, "Already migrated" |
+| Daemon running | Legacy + daemon | `bd migrate var` | Error: stop daemon first |
+| Stray files | var/ + root files | `bd doctor --fix` | Files moved to var/ |
+| Mixed state | var/ + some root | `bd list` | Works (read-both) |
+
+### VarPath() Unit Test Matrix
+
+| beadsDir State | BD_LEGACY_LAYOUT | File Location | VarPath() Returns |
+|----------------|------------------|---------------|-------------------|
+| No var/ | unset | root | .beads/file |
+| No var/ | "1" | root | .beads/file |
+| Has var/ | unset | var/ only | .beads/var/file |
+| Has var/ | unset | root only | .beads/file (fallback) |
+| Has var/ | unset | both | .beads/var/file (priority) |
+| Has var/ | unset | neither | .beads/var/file (new) |
+| Has var/ | "1" | var/ only | .beads/file (override) |
+
+### Doctor Detection Matrix
+
+| Layout | Files at Root | Files in var/ | Doctor Output | --fix Action |
+|--------|---------------|---------------|---------------|--------------|
+| Legacy | Yes | N/A | "ℹ var/ available" | N/A |
+| var/ | No | Yes | ✓ Clean | None |
+| var/ | Yes | Yes | "⚠ wrong location" | Move to var/ |
+| var/ | Yes | No | "⚠ wrong location" | Move to var/ |
+
+### Sync-Branch Compatibility Matrix
+
+| Component | Tracked in Git | var/ Migration Impact |
+|-----------|----------------|----------------------|
+| issues.jsonl | ✓ beads-sync branch | Stays at root |
+| interactions.jsonl | ✓ beads-sync branch | Stays at root |
+| metadata.json | ✓ beads-sync branch | Stays at root |
+| sync_base.jsonl | ✗ gitignored | Moves to var/ |
+| beads.db | ✗ gitignored | Moves to var/ |
+| Worktree checkout | .git/beads-worktrees/ | Unaffected |
+
+### Regression Test Commands
+
+```bash
+# Must pass before AND after migration
+go test ./...
+bd list --status=open
+bd create --title="Test" --type=task && bd close $(bd list --format=ids | tail -1)
+bd sync --status
+bd daemon start && sleep 1 && bd daemon stop
+bd doctor
+```
+
 ## Testing Strategy
 
-- **Unit**: VarPath(), IsVarLayout(), IsVolatileFile()
-- **Integration**: All commands work in both layouts
-- **E2E**: Migration workflow including cleanup
+- **Unit**: VarPath(), VarPathForWrite(), IsVarLayout(), IsVolatileFile(), FilesInWrongLocation()
+- **Integration**: All commands work in both layouts (see matrix above)
+- **E2E**: Full migration workflow from legacy to var/
 - **Regression**: Existing test suite passes without modification
+- **Cross-layout**: Sync between legacy clone and var/ clone
