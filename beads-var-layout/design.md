@@ -365,12 +365,53 @@ No data model changes. File system layout only.
 
 ## Risks and Mitigations
 
+### Implementation Risks
+
 | ID    | Risk                          | Likelihood | Impact | Mitigation                       | Rollback                          |
 | ----- | ----------------------------- | ---------- | ------ | -------------------------------- | --------------------------------- |
 | R-001 | External tools hardcode paths | Medium     | Medium | 6-month compatibility window     | Keep legacy patterns in gitignore |
-| R-002 | sync_base.jsonl loss          | Low        | Low    | Copy, don't move until cleanup   | Manual file recovery              |
+| R-002 | sync_base.jsonl loss          | Low        | Low    | Read-both fallback finds it      | Manual file recovery              |
 | R-003 | Worktree redirect breaks      | Low        | High   | Keep redirect at root            | N/A (not moved)                   |
 | R-004 | Socket path too long          | Low        | Medium | Existing /tmp fallback preserved | N/A (fallback exists)             |
+
+### Ecosystem Risks
+
+| ID    | Risk                          | Likelihood | Impact | Mitigation                       | Rollback                          |
+| ----- | ----------------------------- | ---------- | ------ | -------------------------------- | --------------------------------- |
+| R-005 | Old bd with new repo layout   | Medium     | High   | Min version check in .beads/     | Clone with old bd won't work      |
+| R-006 | Python MCP hardcodes paths    | Medium     | Medium | Audit and update MCP integration | Separate issue/PR                 |
+| R-007 | CI/CD scripts hardcode paths  | Low        | Medium | Document in CHANGELOG            | Scripts need manual update        |
+| R-008 | Backup tools miss var/        | Low        | Low    | var/ inside .beads/, included    | N/A (parent dir backed up)        |
+
+### Migration Risks
+
+| ID    | Risk                          | Likelihood | Impact | Mitigation                       | Rollback                          |
+| ----- | ----------------------------- | ---------- | ------ | -------------------------------- | --------------------------------- |
+| R-009 | Daemon running during migrate | Medium     | Medium | Check daemon, require stop first | Daemon writes to old path         |
+| R-010 | Migration crashes mid-way     | Low        | Low    | Read-both handles partial state  | Files exist in both locations     |
+| R-011 | Disk full during migration    | Low        | Medium | Check space, fail fast           | Original files preserved          |
+
+### Risk R-005 Deep Dive: Version Compatibility
+
+**Scenario**: User A migrates to var/, pushes. User B clones with old bd version.
+
+```
+User A (new bd)              User B (old bd)
+─────────────────            ──────────────────
+bd migrate var               git clone repo
+    │                            │
+    ▼                            ▼
+.beads/var/beads.db          Old bd looks for .beads/beads.db
+    │                            │
+    ▼                            ▼
+git push                     NOT FOUND ✗
+```
+
+**Mitigations**:
+1. Check bd version in `bd init` output
+2. Add `.beads/.min_version` file (future enhancement)
+3. Doctor warns if layout requires newer bd
+4. Document minimum version in release notes
 
 ## Gotchas
 

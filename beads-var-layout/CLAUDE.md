@@ -117,19 +117,24 @@ phases:
 
 ## Risks
 
-| ID    | Risk                          | Likelihood | Impact | Mitigation                              |
-| ----- | ----------------------------- | ---------- | ------ | --------------------------------------- |
-| R-001 | External tools hardcode paths | Medium     | Medium | 6-month backward compatibility window   |
-| R-002 | sync_base.jsonl loss on move  | Low        | Low    | Acceptable: next sync treats as first   |
-| R-003 | Worktree redirect breaks      | Low        | High   | Keep redirect at root, not in var/      |
-| R-004 | Daemon socket path too long   | Low        | Medium | Existing fallback to /tmp/beads-{hash}/ |
-| R-005 | Sync-branch mode breaks       | None       | N/A    | All moved files already gitignored      |
+| ID    | Risk                          | L   | I   | Mitigation                              |
+| ----- | ----------------------------- | --- | --- | --------------------------------------- |
+| R-001 | External tools hardcode paths | M   | M   | 6-month backward compatibility window   |
+| R-002 | sync_base.jsonl loss on move  | L   | L   | Read-both pattern finds it              |
+| R-003 | Worktree redirect breaks      | L   | H   | Keep redirect at root, not in var/      |
+| R-004 | Daemon socket path too long   | L   | M   | Existing fallback to /tmp/beads-{hash}/ |
+| R-005 | **Old bd with new repo**      | M   | H   | Min version check, doctor warning       |
+| R-006 | Python MCP hardcodes paths    | M   | M   | Audit MCP, separate PR                  |
+| R-007 | CI/CD scripts hardcode paths  | L   | M   | Document in CHANGELOG                   |
+| R-009 | Daemon running during migrate | M   | M   | Require daemon stop before migrate      |
+
+**R-005 is highest concern**: Old bd versions won't find files in var/.
 
 ## Unknowns
 
 - Will maintainer accept var/ naming convention?
-- Any external integrations that hardcode paths?
-- Python MCP integration paths need audit
+- Python MCP integration paths need audit (→ R-006)
+- CI/CD scripts in ecosystem? (→ R-007)
 
 ## Atomicity
 

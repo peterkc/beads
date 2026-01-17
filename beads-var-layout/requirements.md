@@ -130,6 +130,16 @@ THE SYSTEM SHALL create legacy (flat) layout.
 FR-072: WHEN bd detects existing .beads/ without var/
 THE SYSTEM SHALL continue using legacy layout (no auto-migration).
 
+### Version Compatibility
+
+FR-080: WHEN bd (old version) opens .beads/ with var/ layout
+THE SYSTEM SHALL fail gracefully with clear error message.
+
+FR-081: WHEN bd doctor runs on var/ layout
+THE SYSTEM SHALL warn if bd version is below minimum required.
+
+FR-082: THE SYSTEM SHOULD include minimum bd version in .beads/metadata.json (future enhancement).
+
 ## Non-Functional Requirements
 
 ### Performance
