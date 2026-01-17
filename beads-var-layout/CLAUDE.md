@@ -19,6 +19,13 @@ beads:
   worktree_path: .worktrees/beads-var-layout
   worktree_branch: feature/beads-var-layout
 
+success_criteria:
+  - "SC-001: All existing tests pass without modification"
+  - "SC-002: Both layouts (legacy/var) work transparently"
+  - "SC-003: Migration command safely moves files"
+  - "SC-004: Doctor detects and reports migration option"
+  - "SC-005: Documentation updated"
+
 phases:
   - name: 'Phase 1: End-to-End Tracer'
     type: tracer
@@ -69,18 +76,21 @@ phases:
 - `internal/configfile/layout.go` — Layout versioning (v1/v2)
 - `cmd/bd/migrate_var.go` — Migration command
 
-**Modified Files:**
+**Modified Files (with symbol paths):**
 
-- `cmd/bd/init.go` — Create var/ by default, add `--legacy` flag
-- `cmd/bd/doctor/migration.go` — Add `needsVarMigration()`, `FilesInWrongLocation()`
-- `cmd/bd/doctor/gitignore.go` — Update `GitignoreTemplate`
-- `internal/configfile/configfile.go` — Update `DatabasePath()`, add `layout` field
-- `cmd/bd/daemon_config.go` — Update daemon file paths
-- `internal/rpc/socket_path.go` — Update socket path
-- `cmd/bd/sync_merge.go` — Update sync file paths
-- `cmd/bd/daemon_sync_state.go` — Update sync state paths
-- `internal/lockfile/lock.go` — Update lock file paths
-- `docs/ARCHITECTURE.md` — Update directory structure diagram
+| File | Symbols to Modify | Line |
+|------|-------------------|------|
+| `internal/configfile/configfile.go` | `Config.DatabasePath` | :96 |
+| `cmd/bd/init.go` | `initCmd.Run` | :44 |
+| `cmd/bd/daemon_config.go` | `getPIDFilePath`, `getLogFilePath` | :77, :86 |
+| `internal/rpc/socket_path.go` | `ShortSocketPath`, `EnsureSocketDir` | :31, :70 |
+| `cmd/bd/sync_merge.go` | `loadBaseState`, `saveBaseState` | :522, :569 |
+| `cmd/bd/daemon_sync_state.go` | `LoadSyncState`, `SaveSyncState` | :45, :70 |
+| `cmd/bd/daemon_lock.go` | `acquireDaemonLock`, `tryDaemonLock`, `checkPIDFile` | :45, :90, :188 |
+| `internal/lockfile/lock.go` | `TryDaemonLock`, `checkPIDFile` | :28, :76 |
+| `cmd/bd/doctor/migration.go` | (new functions) | — |
+| `cmd/bd/doctor/gitignore.go` | `GitignoreTemplate` | :14 |
+| `docs/ARCHITECTURE.md` | Directory structure diagram | :314 |
 - `docs/ARCHITECTURE.md` — Update directory structure diagram
 
 ## Directory Layout (After Migration)

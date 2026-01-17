@@ -145,7 +145,13 @@ go test ./... -v
 | TC03 | Link to GH#919 in PR body  | -        | pending |
 | TC04 | Close beads tracking issue | -        | pending |
 
-**Validation**: PR created at github.com/steveyegge/beads with all tests passing
+**Validation**:
+
+```bash
+# Verify PR exists and CI passes
+gh pr view --json state,statusCheckRollup
+gh pr checks
+```
 
 ---
 
