@@ -1,0 +1,166 @@
+---
+title: '.beads/var/ Layout Migration'
+status: draft
+spec_type: implementation
+created: '2026-01-17'
+source_plan: ~/.claude/plans/encapsulated-seeking-backus.md
+upstream_issue: https://github.com/steveyegge/beads/issues/919
+
+skills:
+  feature: [golang]
+  foundational: [spec, beads]
+
+location:
+  remote: github.com/steveyegge/beads
+  path: specs/beads-var-layout
+
+beads:
+  epic: null  # Set after bd create
+  worktree_path: .worktrees/beads-var-layout
+  worktree_branch: feature/beads-var-layout
+
+phases:
+  - name: 'Phase 1: Centralized Paths Module'
+    type: tracer
+    status: pending
+    description: 'Create internal/beads/paths.go with VarPath(), IsVarLayout()'
+
+  - name: 'Phase 2: Consumer Migration'
+    type: mvs
+    status: pending
+    description: 'Update 6 consumer files to use VarPath()'
+
+  - name: 'Phase 3: Doctor & Migration Command'
+    type: mvs
+    status: pending
+    description: 'Add needsVarMigration() detection and bd migrate var command'
+
+  - name: 'Phase 4: Documentation & Tests'
+    type: mvs
+    status: pending
+    description: 'Update docs/ARCHITECTURE.md, add integration tests'
+
+  - name: 'Phase 5: Closing'
+    type: closing
+    status: pending
+    merge_strategy: pr
+---
+
+# .beads/var/ Layout Migration
+
+> Introduce `.beads/var/` subdirectory for volatile files, simplifying `.gitignore` to a single `var/` rule with zero regressions.
+
+## Success Criteria
+
+| ID     | Criterion                                    | Validation                           |
+| ------ | -------------------------------------------- | ------------------------------------ |
+| SC-001 | All existing tests pass without modification | `go test ./...`                      |
+| SC-002 | Both layouts (legacy/var) work transparently | Integration tests for both           |
+| SC-003 | Migration command safely moves files         | `bd migrate var --dry-run` + execute |
+| SC-004 | Doctor detects and reports migration option  | `bd doctor` shows optional migration |
+| SC-005 | Documentation updated                        | ARCHITECTURE.md reflects new layout  |
+
+## Scope
+
+**New Files:**
+
+- `internal/beads/paths.go` — Centralized volatile file path resolution
+- `internal/beads/paths_test.go` — Unit tests
+- `cmd/bd/migrate_var.go` — Migration command
+
+**Modified Files:**
+
+- `cmd/bd/doctor/migration.go` — Add `needsVarMigration()` detection
+- `cmd/bd/doctor/gitignore.go` — Update `GitignoreTemplate`
+- `internal/configfile/configfile.go` — Update `DatabasePath()`
+- `cmd/bd/daemon_config.go` — Update daemon file paths
+- `internal/rpc/socket_path.go` — Update socket path
+- `cmd/bd/sync_merge.go` — Update sync file paths
+- `cmd/bd/daemon_sync_state.go` — Update sync state pathWi
+- `internal/lockfile/lock.go` — Update lock file paths
+- `docs/ARCHITECTURE.md` — Update directory structure diagram
+
+## Directory Layout (After Migration)
+
+```
+.beads/
+├── var/                      # VOLATILE (gitignored directory)
+│   ├── beads.db              # SQLite database
+│   ├── beads.db-journal      # SQLite journaling
+│   ├── beads.db-wal          # SQLite WAL
+│   ├── beads.db-shm          # SQLite shared memory
+│   ├── daemon.lock           # Daemon flock
+│   ├── daemon.log            # Daemon logs
+│   ├── daemon.pid            # Daemon PID
+│   ├── bd.sock               # Unix socket
+│   ├── sync_base.jsonl       # Sync merge base state
+│   ├── .sync.lock            # Sync concurrency guard
+│   ├── sync-state.json       # Sync backoff state
+│   ├── beads.base.jsonl      # Merge artifact
+│   ├── beads.base.meta.json  # Merge artifact metadata
+│   ├── beads.left.jsonl      # Merge artifact
+│   ├── beads.left.meta.json  # Merge artifact metadata
+│   ├── beads.right.jsonl     # Merge artifact
+│   ├── beads.right.meta.json # Merge artifact metadata
+│   ├── last-touched          # Last modified tracking
+│   ├── .local_version        # Version tracking
+│   └── export_hashes.db      # Export tracking
+│
+├── redirect                  # STAYS AT ROOT (worktree discovery)
+├── issues.jsonl              # PERSISTENT (git-tracked)
+├── interactions.jsonl        # PERSISTENT (git-tracked)
+├── metadata.json             # CONFIG (git-tracked)
+├── routes.jsonl              # CONFIG (git-tracked, if exists)
+├── molecules.jsonl           # CONFIG (git-tracked, if exists)
+└── .gitignore                # SIMPLIFIED: just "var/" + legacy patterns
+```
+
+## Risks
+
+| ID    | Risk                          | Likelihood | Impact | Mitigation                              |
+| ----- | ----------------------------- | ---------- | ------ | --------------------------------------- |
+| R-001 | External tools hardcode paths | Medium     | Medium | 6-month backward compatibility window   |
+| R-002 | sync_base.jsonl loss on move  | Low        | Low    | Acceptable: next sync treats as first   |
+| R-003 | Worktree redirect breaks      | Low        | High   | Keep redirect at root, not in var/      |
+| R-004 | Daemon socket path too long   | Low        | Medium | Existing fallback to /tmp/beads-{hash}/ |
+| R-005 | Sync-branch mode breaks       | None       | N/A    | All moved files already gitignored      |
+
+## Unknowns
+
+- Will maintainer accept var/ naming convention?
+- Any external integrations that hardcode paths?
+- Python MCP integration paths need audit
+
+## Atomicity
+
+Each phase is independently mergeable and rollback-safe:
+
+- **Phase 1**: VarPath() fallback ensures existing code works
+- **Phase 2**: Consumers use VarPath() which handles both layouts
+- **Phase 3**: Migration optional, doctor shows as "optional" priority
+- **Rollback**: `mv .beads/var/* .beads/ && rmdir .beads/var`
+
+## Spec Files
+
+- [Requirements](requirements.md) — EARS format
+- [Design](design.md) — Architecture decisions
+- [Tasks](tasks.md) — Phase breakdown
+- [ADR: var/ Directory Pattern](adr/0001-var-directory-for-volatile-files.md)
+
+## Execution
+
+**Always use `/spec:run` to execute phases:**
+
+```bash
+/spec:run beads-var-layout           # Execute next pending phase
+/spec:run beads-var-layout --phase 2 # Execute specific phase
+```
+
+**Why:**
+
+- Gate L3 approval enforced per phase
+- Context isolation via implementor agent
+- Beads tracking automated
+- Commit workflow via /commit
+
+**Never** implement phases directly without `/spec:run`.

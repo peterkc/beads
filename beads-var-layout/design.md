@@ -1,0 +1,341 @@
+# Design: .beads/var/ Layout Migration
+
+## Architecture Overview
+
+Centralized path resolution module that abstracts volatile file locations, enabling transparent support for both legacy (flat) and new (var/) layouts.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        BEADS VAR/ MIGRATION IMPACT                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    NEW: internal/beads/paths.go                      │   │
+│  │  Centralized volatile file path resolution (extends RepoContext)    │   │
+│  │  ┌─────────────────────────────────────────────────────────────┐   │   │
+│  │  │ VolatileFiles[]     VarPath()      VarDir()    IsVarLayout() │   │   │
+│  │  └─────────────────────────────────────────────────────────────┘   │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                         CONSUMERS (6 files)                          │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │                                                                      │   │
+│  │  cmd/bd/daemon_config.go          internal/rpc/socket_path.go       │   │
+│  │  ├─ getPIDFilePath()              ├─ ShortSocketPath()              │   │
+│  │  ├─ getLogFilePath()              └─ bd.sock location               │   │
+│  │  └─ daemon.lock location                                            │   │
+│  │                                                                      │   │
+│  │  cmd/bd/sync_merge.go             cmd/bd/daemon_sync_state.go       │   │
+│  │  ├─ loadBaseState()               └─ sync-state.json location       │   │
+│  │  └─ sync_base.jsonl location                                        │   │
+│  │                                                                      │   │
+│  │  internal/configfile/configfile.go                                  │   │
+│  │  └─ DatabasePath() → uses VarPath() for beads.db                    │   │
+│  │                                                                      │   │
+│  │  internal/lockfile/lock.go                                          │   │
+│  │  └─ daemon.lock, daemon.pid paths                                   │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    DOCTOR SUBSYSTEM (3 files)                        │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │                                                                      │   │
+│  │  cmd/bd/doctor/gitignore.go       cmd/bd/doctor/migration.go        │   │
+│  │  ├─ GitignoreTemplate (UPDATE)    ├─ needsVarMigration() (NEW)      │   │
+│  │  ├─ requiredPatterns (UPDATE)     └─ DetectPendingMigrations()      │   │
+│  │  └─ FixGitignore()                                                  │   │
+│  │                                                                      │   │
+│  │  cmd/bd/migrate_var.go (NEW)                                        │   │
+│  │  ├─ runVarMigration()                                               │   │
+│  │  ├─ runVarCleanup()                                                 │   │
+│  │  └─ rollbackMigration()                                             │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                      UNCHANGED (root-level)                          │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │  redirect         - Must stay at root for worktree discovery        │   │
+│  │  issues.jsonl     - Git-tracked data                                │   │
+│  │  interactions.jsonl - Git-tracked audit log                         │   │
+│  │  metadata.json    - Configuration                                   │   │
+│  │  config.yaml      - User configuration                              │   │
+│  │  .gitignore       - Stays at root (content changes)                 │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Key Decisions
+
+### Decision 1: Centralized paths.go Module
+
+**Context**: Volatile file paths are currently scattered across 6+ files with hardcoded joins.
+
+**Options Considered**:
+
+1. **Centralized module** — Single `paths.go` with `VarPath()` helper
+2. **Per-file detection** — Each file checks layout independently
+3. **Config-based** — Store layout preference in metadata.json
+
+**Decision**: Centralized module (Option 1)
+
+**Rationale**:
+- Follows existing `RepoContext` pattern in `docs/REPO_CONTEXT.md`
+- Single source of truth for path resolution
+- Easy to maintain and test
+- No config migration needed
+
+### Decision 2: redirect Stays at Root
+
+**Context**: The `redirect` file enables worktree discovery by pointing to main repo's `.beads/`.
+
+**Options Considered**:
+
+1. **Move to var/** — Consistent with other volatile files
+2. **Keep at root** — Preserve worktree discovery semantics
+
+**Decision**: Keep at root (Option 2)
+
+**Rationale**:
+- `FollowRedirect()` in `internal/beads/beads.go` reads redirect before beads context is established
+- Moving would require redirect-within-redirect logic
+- Redirect is already gitignored, no benefit to moving
+
+### Decision 3: Legacy Patterns in Gitignore
+
+**Context**: After migration, should gitignore only contain `var/`?
+
+**Options Considered**:
+
+1. **var/ only** — Clean but breaks unmigrated users
+2. **var/ + legacy** — Redundant but backward compatible
+3. **Conditional generation** — Complex logic per layout
+
+**Decision**: var/ + legacy patterns (Option 2)
+
+**Rationale**:
+- Mixed-layout clones (different team members) must work during transition
+- Legacy patterns are harmless in new layout (files don't exist at root)
+- Simplifies migration — no gitignore changes required
+
+### Decision 4: Migration is Optional
+
+**Context**: Should existing users be forced to migrate?
+
+**Options Considered**:
+
+1. **Auto-migrate on upgrade** — Clean but risky
+2. **Doctor warning** — Visible but optional
+3. **Doctor info** — Minimally intrusive, truly optional
+
+**Decision**: Doctor info, Priority 3 (Option 3)
+
+**Rationale**:
+- Zero regression requirement means no forced changes
+- Users who want var/ benefits can opt in
+- Gradual adoption allows ecosystem to catch up
+
+### Decision 5: Read-Both Coexistence Pattern
+
+**Context**: Can var/ and legacy layouts coexist for edge case safety?
+
+**Options Considered**:
+
+1. **Binary check** — If var/ exists use it, else use root (simple but fragile)
+2. **Read-both, write-one** — Check both locations on read, write to layout preference
+3. **Full bidirectional** — Read/write to both (overcomplicated)
+
+**Decision**: Read-both, write-one (Option 2)
+
+**Rationale**:
+- Handles interrupted migrations gracefully
+- External tools that haven't updated work during transition
+- Doctor can find files in unexpected locations
+- Two stat() calls worst-case is negligible (NFR-001 allows 1ms)
+- Prevents "file not found" errors during migration edge cases
+
+**Behavior**:
+| Operation | var/ Layout | Legacy Layout | During Migration |
+|-----------|------------|---------------|------------------|
+| Read      | var/ first, then root | root only | Both checked |
+| Write     | var/ only | root only | Layout preference |
+
+This makes the system self-healing — files in wrong locations are still found.
+
+## Component Design
+
+### internal/beads/paths.go
+
+**Purpose**: Centralized volatile file path resolution
+
+**Interface**:
+
+```go
+package beads
+
+import (
+    "os"
+    "path/filepath"
+)
+
+// VolatileFiles lists all files that should live in var/
+var VolatileFiles = []string{
+    "beads.db", "beads.db-journal", "beads.db-wal", "beads.db-shm",
+    "daemon.lock", "daemon.log", "daemon.pid", "bd.sock",
+    "sync_base.jsonl", ".sync.lock", "sync-state.json",
+    "beads.base.jsonl", "beads.base.meta.json",
+    "beads.left.jsonl", "beads.left.meta.json",
+    "beads.right.jsonl", "beads.right.meta.json",
+    "last-touched", ".local_version", "export_hashes.db",
+}
+
+// VarPath returns the path for a volatile file, using read-both pattern.
+// For READS: checks var/ first, falls back to root (handles edge cases).
+// For WRITES: uses layout preference (var/ if exists, else root).
+func VarPath(beadsDir, filename string) string {
+    // Environment override for emergency fallback
+    if os.Getenv("BD_LEGACY_LAYOUT") == "1" {
+        return filepath.Join(beadsDir, filename)
+    }
+
+    varPath := filepath.Join(beadsDir, "var", filename)
+    rootPath := filepath.Join(beadsDir, filename)
+
+    // Read-both: check var/ first, then root (handles migration edge cases)
+    if _, err := os.Stat(varPath); err == nil {
+        return varPath
+    }
+    if _, err := os.Stat(rootPath); err == nil {
+        return rootPath
+    }
+
+    // New file: use layout preference
+    if IsVarLayout(beadsDir) {
+        return varPath
+    }
+    return rootPath
+}
+
+// VarPathForWrite returns the path for writing a volatile file.
+// Always respects layout preference (no fallback checking).
+func VarPathForWrite(beadsDir, filename string) string {
+    if os.Getenv("BD_LEGACY_LAYOUT") == "1" {
+        return filepath.Join(beadsDir, filename)
+    }
+    if IsVarLayout(beadsDir) {
+        return filepath.Join(beadsDir, "var", filename)
+    }
+    return filepath.Join(beadsDir, filename)
+}
+
+// VarDir returns the directory for volatile files.
+// Returns var/ if it exists, otherwise beadsDir root.
+func VarDir(beadsDir string) string {
+    if IsVarLayout(beadsDir) {
+        return filepath.Join(beadsDir, "var")
+    }
+    return beadsDir
+}
+
+// IsVarLayout checks if .beads uses the var/ layout.
+func IsVarLayout(beadsDir string) bool {
+    if os.Getenv("BD_LEGACY_LAYOUT") == "1" {
+        return false
+    }
+    varDir := filepath.Join(beadsDir, "var")
+    info, err := os.Stat(varDir)
+    return err == nil && info.IsDir()
+}
+
+// EnsureVarDir creates the var/ directory if it doesn't exist.
+func EnsureVarDir(beadsDir string) error {
+    varDir := filepath.Join(beadsDir, "var")
+    return os.MkdirAll(varDir, 0700)
+}
+
+// IsVolatileFile checks if a filename is a volatile file.
+func IsVolatileFile(filename string) bool {
+    for _, vf := range VolatileFiles {
+        if filename == vf {
+            return true
+        }
+    }
+    // Also check glob patterns
+    if matched, _ := filepath.Match("*.db-*", filename); matched {
+        return true
+    }
+    return false
+}
+```
+
+**Dependencies**: Standard library only (os, path/filepath)
+
+### cmd/bd/migrate_var.go
+
+**Purpose**: Migration command implementation
+
+**Interface**:
+
+```go
+var migrateVarCmd = &cobra.Command{
+    Use:   "var",
+    Short: "Migrate to var/ layout for volatile files",
+    Long: `Migrate .beads/ to use var/ subdirectory for volatile files.
+
+This organizes machine-local files (database, daemon, sync state) into
+.beads/var/, separating them from git-tracked files.
+
+The migration is safe and reversible. Old files are preserved until
+you run 'bd migrate var --cleanup' after verifying everything works.`,
+    Run: runMigrateVar,
+}
+
+func init() {
+    migrateCmd.AddCommand(migrateVarCmd)
+    migrateVarCmd.Flags().Bool("dry-run", false, "Preview changes without modifying files")
+    migrateVarCmd.Flags().Bool("cleanup", false, "Remove old files after successful migration")
+}
+```
+
+**Dependencies**: beads package, cobra
+
+## Data Model
+
+No data model changes. File system layout only.
+
+## Error Handling
+
+| Error Condition             | Handling Strategy                             |
+| --------------------------- | --------------------------------------------- |
+| var/ creation fails         | Return error with permission details          |
+| File copy fails             | Preserve original, return error               |
+| Already migrated            | Exit 0 with "Already using var/ layout"       |
+| Daemon running              | Prompt to stop or use --force                 |
+| Disk full                   | Fail fast, preserve originals                 |
+
+## Risks and Mitigations
+
+| ID    | Risk                          | Likelihood | Impact | Mitigation                       | Rollback                          |
+| ----- | ----------------------------- | ---------- | ------ | -------------------------------- | --------------------------------- |
+| R-001 | External tools hardcode paths | Medium     | Medium | 6-month compatibility window     | Keep legacy patterns in gitignore |
+| R-002 | sync_base.jsonl loss          | Low        | Low    | Copy, don't move until cleanup   | Manual file recovery              |
+| R-003 | Worktree redirect breaks      | Low        | High   | Keep redirect at root            | N/A (not moved)                   |
+| R-004 | Socket path too long          | Low        | Medium | Existing /tmp fallback preserved | N/A (fallback exists)             |
+
+## Gotchas
+
+- `redirect` file MUST stay at root — read before beads context exists
+- Socket path length limit (103 chars) — existing fallback handles this
+- SQLite creates sibling files (`.db-journal`, `.db-wal`) — they follow db location automatically
+- `export_hashes.db` is separate from main database — must also move to var/
+
+## Testing Strategy
+
+- **Unit**: VarPath(), IsVarLayout(), IsVolatileFile()
+- **Integration**: All commands work in both layouts
+- **E2E**: Migration workflow including cleanup
+- **Regression**: Existing test suite passes without modification
