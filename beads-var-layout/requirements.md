@@ -132,13 +132,13 @@ THE SYSTEM SHALL continue using legacy layout (no auto-migration).
 
 ### Version Compatibility
 
-FR-080: WHEN bd (old version) opens .beads/ with var/ layout
-THE SYSTEM SHALL fail gracefully with clear error message.
+FR-080: WHEN bd (< v0.48.0) opens .beads/ with var/ layout
+THE SYSTEM SHALL fail gracefully with message "Please upgrade to bd v0.48.0+".
 
 FR-081: WHEN bd doctor runs on var/ layout
-THE SYSTEM SHALL warn if bd version is below minimum required.
+THE SYSTEM SHALL warn if bd version is below v0.48.0.
 
-FR-082: THE SYSTEM SHOULD include minimum bd version in .beads/metadata.json (future enhancement).
+FR-082: THE SYSTEM SHOULD include `min_bd_version: "0.48.0"` in .beads/metadata.json when var/ layout is used.
 
 ## Non-Functional Requirements
 

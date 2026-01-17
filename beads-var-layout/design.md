@@ -408,10 +408,10 @@ git push                     NOT FOUND ✗
 ```
 
 **Mitigations**:
-1. Check bd version in `bd init` output
-2. Add `.beads/.min_version` file (future enhancement)
+1. Old bd (< v0.48.0) fails gracefully: "Please upgrade to bd v0.48.0+"
+2. Add `min_bd_version` to `.beads/metadata.json` (future enhancement)
 3. Doctor warns if layout requires newer bd
-4. Document minimum version in release notes
+4. Document breaking change in v0.48.0 release notes
 
 ## Gotchas
 
