@@ -130,18 +130,19 @@ THE SYSTEM SHALL create legacy (flat) layout.
 FR-072: WHEN bd detects existing .beads/ without var/
 THE SYSTEM SHALL continue using legacy layout (no auto-migration).
 
-### Version Compatibility
+### Layout Versioning
 
 FR-080: WHEN bd creates var/ layout (init or migrate)
-THE SYSTEM SHALL write `min_bd_version` field to .beads/metadata.json.
+THE SYSTEM SHALL write `layout: "v2"` to .beads/metadata.json.
 
-FR-081: WHEN bd opens .beads/ AND metadata.json contains min_bd_version
-THE SYSTEM SHALL compare against current bd version.
+FR-081: WHEN bd opens .beads/ AND layout field is absent or "v1"
+THE SYSTEM SHALL use legacy flat layout.
 
-FR-082: IF current bd version < min_bd_version
-THEN THE SYSTEM SHALL fail with "This repo requires bd {min_bd_version}+ (you have {current})".
+FR-082: WHEN bd opens .beads/ AND layout field is "v2"
+THE SYSTEM SHALL use var/ layout.
 
-FR-083: THE SYSTEM SHALL NOT hardcode version numbers in source code for compatibility checks.
+FR-083: WHEN bd opens .beads/ AND layout field is unknown (e.g., "v3")
+THE SYSTEM SHALL fail with "Unknown layout '{value}' - please upgrade bd".
 
 ## Non-Functional Requirements
 

@@ -408,9 +408,9 @@ git push                     NOT FOUND ✗
 ```
 
 **Mitigations**:
-1. Store `min_bd_version` in `.beads/metadata.json` (no hardcoded versions)
-2. bd checks min_bd_version at startup, fails with clear message
-3. Doctor warns if current bd < min_bd_version
+1. Store `layout: "v2"` in `.beads/metadata.json`
+2. New bd checks layout field, handles known values, rejects unknown
+3. Future layouts (v3, v4) trigger "please upgrade" message
 4. Document in release notes
 
 **Implementation**:
@@ -418,26 +418,35 @@ git push                     NOT FOUND ✗
 // .beads/metadata.json (after var/ migration or init)
 {
   "name": "my-project",
-  "min_bd_version": "0.48.0"
+  "layout": "v2"
 }
 ```
 
 ```go
-// internal/configfile/version_check.go
-func CheckMinVersion(meta *Metadata) error {
-    if meta.MinBDVersion == "" {
-        return nil  // Legacy repo, no requirement
+// internal/configfile/layout.go
+func GetLayout(meta *Metadata) string {
+    if meta.Layout == "" {
+        return "v1"  // Default: legacy flat layout
     }
-    if version.Compare(Version, meta.MinBDVersion) < 0 {
-        return fmt.Errorf("This repo requires bd %s+ (you have %s)",
-            meta.MinBDVersion, Version)
+    return meta.Layout
+}
+
+func CheckLayout(meta *Metadata) error {
+    switch meta.Layout {
+    case "", "v1", "v2":
+        return nil  // Known layouts
+    default:
+        return fmt.Errorf("Unknown layout '%s' - please upgrade bd", meta.Layout)
     }
-    return nil
+}
+
+func UseVarLayout(meta *Metadata) bool {
+    return GetLayout(meta) == "v2"
 }
 ```
 
-**Note**: Old bd (v0.47.x) ignores unknown fields in metadata.json but will fail
-with "database not found" — not ideal but unavoidable without hardcoding.
+**Note**: Old bd (v0.47.x) ignores the `layout` field and fails with "database not found".
+Release notes should say: *"If 'database not found' after pull, upgrade to v0.48.0"*
 
 ## Gotchas
 

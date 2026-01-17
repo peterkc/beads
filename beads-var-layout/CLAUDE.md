@@ -123,12 +123,12 @@ phases:
 | R-002 | sync_base.jsonl loss on move  | L   | L   | Read-both pattern finds it              |
 | R-003 | Worktree redirect breaks      | L   | H   | Keep redirect at root, not in var/      |
 | R-004 | Daemon socket path too long   | L   | M   | Existing fallback to /tmp/beads-{hash}/ |
-| R-005 | **Old bd with new repo**      | M   | H   | Min version check, doctor warning       |
+| R-005 | **Old bd with new repo**      | M   | H   | `layout: v2` field, doctor warning      |
 | R-006 | Python MCP hardcodes paths    | M   | M   | Audit MCP, separate PR                  |
 | R-007 | CI/CD scripts hardcode paths  | L   | M   | Document in CHANGELOG                   |
 | R-009 | Daemon running during migrate | M   | M   | Require daemon stop before migrate      |
 
-**R-005 is highest concern**: Old bd versions won't find files in var/.
+**R-005 mitigation**: `layout: "v2"` in metadata.json. Future unknown layouts trigger "please upgrade".
 
 ## Unknowns
 
