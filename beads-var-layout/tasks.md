@@ -1,40 +1,64 @@
 # Tasks: .beads/var/ Layout Migration
 
-## Phase 1: Centralized Paths Module (Tracer)
+## Phase 1: End-to-End Tracer Bullet
 
-**Goal**: Create `internal/beads/paths.go` with VarPath() and layout detection
+**Goal**: Prove var/ layout works end-to-end with ONE consumer before full migration
 
-| ID   | Task                            | Parallel | Status  |
-| ---- | ------------------------------- | -------- | ------- |
-| T001 | Create internal/beads/paths.go  | -        | pending |
-| T002 | Implement VarPath() function    | -        | pending |
-| T003 | Implement IsVarLayout() check   | -        | pending |
-| T004 | Implement VarDir() helper       | -        | pending |
-| T005 | Add BD_LEGACY_LAYOUT env check  | -        | pending |
-| T006 | Create paths_test.go unit tests | -        | pending |
+**Tracer Path**: `paths.go` → `DatabasePath()` → `bd init` → `bd list`
 
-**Validation**:
+| ID   | Task                                      | Parallel | Status  |
+| ---- | ----------------------------------------- | -------- | ------- |
+| T001 | Create internal/beads/paths.go (minimal)  | -        | pending |
+| T002 | Implement VarPath() with read-both        | -        | pending |
+| T003 | Implement IsVarLayout() check             | -        | pending |
+| T004 | Update configfile.DatabasePath() ONLY     | -        | pending |
+| T005 | Update bd init to create var/ by default  | -        | pending |
+| T006 | Add --legacy flag to bd init              | -        | pending |
+| T007 | Create paths_test.go unit tests           | -        | pending |
+
+**Tracer Validation** (must all pass before Phase 2):
 
 ```bash
+# Unit tests
 go test ./internal/beads/... -v -run TestVarPath
-go test ./internal/beads/... -v -run TestIsVarLayout
+
+# End-to-end: New user path
+cd $(mktemp -d) && git init && bd init
+ls .beads/var/          # var/ exists
+bd list                 # Works with var/ layout
+
+# End-to-end: Legacy path
+cd $(mktemp -d) && git init && bd init --legacy
+ls .beads/              # No var/, flat layout
+bd list                 # Works with legacy layout
+
+# End-to-end: Existing legacy user
+# (use existing .beads/ without var/)
+bd list                 # Still works, no regression
 ```
+
+**Why This Tracer**:
+- Touches all layers: new module → existing consumer → CLI → file system
+- Validates read-both pattern works in practice
+- Proves zero regression for legacy users
+- If this fails, we know before migrating 5 more consumers
 
 ---
 
-## Phase 2: Consumer Migration (MVS)
+## Phase 2: Remaining Consumer Migration (MVS)
 
-**Goal**: Update 6 consumer files to use VarPath()
+**Goal**: Update remaining 5 consumer files to use VarPath()
+
+**Note**: configfile.DatabasePath() already migrated in Phase 1 tracer
 
 | ID   | Task                                  | Parallel | Status  |
 | ---- | ------------------------------------- | -------- | ------- |
-| T010 | Update configfile.DatabasePath()      | -        | pending |
-| T011 | Update daemon_config.go paths         | [P]      | pending |
-| T012 | Update rpc/socket_path.go             | [P]      | pending |
-| T013 | Update sync_merge.go paths            | [P]      | pending |
-| T014 | Update daemon_sync_state.go paths     | [P]      | pending |
-| T015 | Update lockfile/lock.go paths         | [P]      | pending |
-| T016 | Run existing test suite               | -        | pending |
+| T010 | Update daemon_config.go paths         | [P]      | pending |
+| T011 | Update rpc/socket_path.go             | [P]      | pending |
+| T012 | Update sync_merge.go paths            | [P]      | pending |
+| T013 | Update daemon_sync_state.go paths     | [P]      | pending |
+| T014 | Update lockfile/lock.go paths         | [P]      | pending |
+| T015 | Run existing test suite               | -        | pending |
 
 **Validation**:
 
@@ -42,35 +66,43 @@ go test ./internal/beads/... -v -run TestIsVarLayout
 go test ./...
 bd list  # Verify basic operations work
 bd daemon start && bd daemon stop  # Verify daemon works
+bd sync  # Verify sync works
 ```
 
 ---
 
 ## Phase 3: Doctor & Migration Command (MVS)
 
-**Goal**: Add migration detection and `bd migrate var` command
+**Goal**: Add migration detection, `bd migrate var`, and doctor --fix for strays
 
-| ID   | Task                               | Parallel | Status  |
-| ---- | ---------------------------------- | -------- | ------- |
-| T020 | Add needsVarMigration() detection  | -        | pending |
-| T021 | Add to DetectPendingMigrations()   | -        | pending |
-| T022 | Create cmd/bd/migrate_var.go       | -        | pending |
-| T023 | Implement runVarMigration()        | -        | pending |
-| T024 | Implement --dry-run flag           | [P]      | pending |
-| T025 | Implement --cleanup flag           | [P]      | pending |
-| T026 | Update GitignoreTemplate           | -        | pending |
-| T027 | Add var/ to requiredPatterns       | -        | pending |
-| T028 | Create migration tests             | -        | pending |
+| ID   | Task                                  | Parallel | Status  |
+| ---- | ------------------------------------- | -------- | ------- |
+| T020 | Add needsVarMigration() detection     | -        | pending |
+| T021 | Add FilesInWrongLocation() detection  | -        | pending |
+| T022 | Add to DetectPendingMigrations()      | -        | pending |
+| T023 | Create cmd/bd/migrate_var.go          | -        | pending |
+| T024 | Implement runVarMigration()           | -        | pending |
+| T025 | Implement --dry-run flag              | -        | pending |
+| T026 | Add stray file fix to doctor --fix    | -        | pending |
+| T027 | Update GitignoreTemplate              | -        | pending |
+| T028 | Add var/ to requiredPatterns          | -        | pending |
+| T029 | Create migration tests                | -        | pending |
 
 **Validation**:
 
 ```bash
-bd doctor  # Should show optional var-layout migration
+# Legacy user sees option
+bd doctor  # "ℹ Optional: var/ layout available"
+
+# Migration workflow
 bd migrate var --dry-run  # Preview changes
-# In test directory:
-bd migrate var  # Execute migration
-bd doctor  # Should show no migration needed
-bd list  # Commands work in new layout
+bd migrate var            # Execute migration
+bd doctor                 # No warnings
+
+# Stray file cleanup
+touch .beads/stray.db     # Simulate external tool
+bd doctor                 # "⚠ 1 file in wrong location"
+bd doctor --fix           # Moves to var/
 ```
 
 ---
@@ -120,34 +152,53 @@ go test ./... -v
 ## Dependency Graph
 
 ```
-Phase 1: Tracer
-T001 ─> T002 ─> T003 ─> T004 ─> T005 ─> T006
-                                          │
-Phase 2: Consumer Migration               ▼
-         ┌────────────────────────────────┴─────────────────┐
-         │                                                  │
-T010 ────┼─> T011 ─┬─> T016 (run tests)                     │
-         │   T012 ─┤                                        │
-         │   T013 ─┤                                        │
-         │   T014 ─┤                                        │
-         │   T015 ─┘                                        │
-         │                                                  │
-Phase 3: Doctor & Migration                                 ▼
-T020 ─> T021 ─> T022 ─> T023 ─┬─> T024 ─┬─> T026 ─> T027 ─> T028
-                              └─> T025 ─┘
-                                                            │
-Phase 4: Docs & Tests                                       ▼
+Phase 1: End-to-End Tracer
+─────────────────────────────────────────────────────────────
+T001 ─> T002 ─> T003 ─> T004 ─> T005 ─> T006 ─> T007
+  │       │       │       │       │       │
+paths.go  │    IsVar   DB only  init   --legacy  tests
+       VarPath  Layout           var/    flag
+                                                    │
+                      TRACER VALIDATION GATE        ▼
+                      (bd list works both layouts)
+                                                    │
+Phase 2: Remaining Consumers                        ▼
+─────────────────────────────────────────────────────────────
+         T010 ─┬─> T015 (run tests)
+         T011 ─┤
+         T012 ─┤
+         T013 ─┤
+         T014 ─┘
+           │
+      (all parallel)
+                                                    │
+Phase 3: Doctor & Migration                         ▼
+─────────────────────────────────────────────────────────────
+T020 ─> T021 ─> T022 ─> T023 ─> T024 ─> T026 ─> T027 ─> T028
+  │       │       │       │       │       │       │
+needs   detect  migrate  run    dry-run  git    patterns tests
+VarMig  pending  .go     Mig            ignore
+                                                    │
+Phase 4: Docs & Tests                               ▼
+─────────────────────────────────────────────────────────────
 T030 ─┬─> T031 ─┬─> T034 ─> T035
-      ├─> T032 ─┤
-      └─> T033 ─┘
-                                                            │
-Phase 5: Closing                                            ▼
+  │   ├─> T032 ─┤     │       │
+ARCH  │   └─> T033 ─┘  mixed  CHANGELOG
+      │         │      sync
+   TROUBLE   integ
+   SHOOT     tests
+                                                    │
+Phase 5: Closing                                    ▼
+─────────────────────────────────────────────────────────────
 TC01 ─> TC02 ─> TC03 ─> TC04
+  │       │       │       │
+push    draft   link    close
+        PR     GH#919  issue
 ```
 
 ## Code Examples
 
-### T001-T005: paths.go Implementation
+### T001-T003: paths.go Implementation (Read-Both Pattern)
 
 ```go
 // internal/beads/paths.go
@@ -166,7 +217,34 @@ var VolatileFiles = []string{
     "last-touched", ".local_version", "export_hashes.db",
 }
 
+// VarPath returns path for volatile file using read-both pattern.
+// For READS: checks var/ first, falls back to root (handles edge cases).
+// For NEW files: uses layout preference (var/ if exists, else root).
 func VarPath(beadsDir, filename string) string {
+    if os.Getenv("BD_LEGACY_LAYOUT") == "1" {
+        return filepath.Join(beadsDir, filename)
+    }
+
+    varPath := filepath.Join(beadsDir, "var", filename)
+    rootPath := filepath.Join(beadsDir, filename)
+
+    // Read-both: check var/ first, then root
+    if _, err := os.Stat(varPath); err == nil {
+        return varPath
+    }
+    if _, err := os.Stat(rootPath); err == nil {
+        return rootPath
+    }
+
+    // New file: use layout preference
+    if IsVarLayout(beadsDir) {
+        return varPath
+    }
+    return rootPath
+}
+
+// VarPathForWrite returns path for writing (no fallback checking).
+func VarPathForWrite(beadsDir, filename string) string {
     if os.Getenv("BD_LEGACY_LAYOUT") == "1" {
         return filepath.Join(beadsDir, filename)
     }
