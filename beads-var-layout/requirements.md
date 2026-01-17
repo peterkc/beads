@@ -119,6 +119,17 @@ FR-068: THE SYSTEM SHALL use `bd migrate var` for initial migration (creates var
 
 FR-069: THE SYSTEM SHALL use `bd doctor --fix` for stray file cleanup (var/ already exists).
 
+### New User Default
+
+FR-070: WHEN `bd init` is run
+THE SYSTEM SHALL create var/ layout by default.
+
+FR-071: WHEN `bd init --legacy` is run
+THE SYSTEM SHALL create legacy (flat) layout.
+
+FR-072: WHEN bd detects existing .beads/ without var/
+THE SYSTEM SHALL continue using legacy layout (no auto-migration).
+
 ## Non-Functional Requirements
 
 ### Performance

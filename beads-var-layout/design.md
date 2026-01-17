@@ -387,32 +387,28 @@ No data model changes. File system layout only.
 bd init
     │
     ▼
-Creates .beads/ (legacy layout)
+Creates .beads/var/ (new default)
     │
     ▼
-bd doctor
+.gitignore contains just "var/"
     │
     ▼
-"ℹ Optional: var/ layout available"
+All volatile files in var/ from start
     │
-    ├── User ignores ──► Continues with legacy layout
-    │                         │
-    │                         ▼
-    │                    All commands work ✓
+    ▼
+bd list, bd create, bd sync ── all work ✓
+
+
+bd init --legacy (explicit opt-out)
     │
-    └── User opts in
-            │
-            ▼
-        bd migrate var --dry-run
-            │
-            ▼
-        bd migrate var
-            │
-            ▼
-        .beads/var/ created, files moved
-            │
-            ▼
-        All commands work ✓
+    ▼
+Creates .beads/ (flat layout)
+    │
+    ▼
+.gitignore contains all patterns
+    │
+    ▼
+All commands work ✓
 ```
 
 ### Path B: Existing User Migration
@@ -504,7 +500,8 @@ Return .beads/beads.db (new file, legacy)
 
 | Test | Legacy Layout | var/ Layout | Expected |
 |------|---------------|-------------|----------|
-| `bd init` | Creates .beads/ | Creates .beads/ | Legacy default |
+| `bd init` | N/A | Creates .beads/var/ | var/ default |
+| `bd init --legacy` | Creates .beads/ | N/A | Legacy on request |
 | `bd list` | Works | Works | Same output |
 | `bd create` | Works | Works | Issue created |
 | `bd show` | Works | Works | Issue displayed |
@@ -518,6 +515,8 @@ Return .beads/beads.db (new file, legacy)
 
 | Scenario | Input State | Command | Expected Output |
 |----------|-------------|---------|-----------------|
+| New user default | No .beads/ | `bd init` | var/ layout created |
+| New user legacy | No .beads/ | `bd init --legacy` | Legacy layout created |
 | Fresh migrate | Legacy, no var/ | `bd migrate var` | var/ created, files moved |
 | Dry run | Legacy, no var/ | `bd migrate var --dry-run` | Preview only, no changes |
 | Already migrated | var/ exists | `bd migrate var` | Exit 0, "Already migrated" |
