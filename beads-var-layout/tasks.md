@@ -6,6 +6,8 @@
 
 **Tracer Path**: `paths.go` → `DatabasePath()` → `bd init` → `bd list`
 
+**Patterns**: See [design.md](design.md#decision-5-read-both-coexistence-pattern) for read-both pattern
+
 | ID   | Task                                      | Parallel | Status  |
 | ---- | ----------------------------------------- | -------- | ------- |
 | T001 | Create internal/beads/paths.go (minimal)  | -        | pending |
@@ -78,6 +80,8 @@ bd sync  # Verify sync works
 ## Phase 3a: Doctor Detection (MVS)
 
 **Goal**: Add migration detection and doctor --fix for stray files
+
+**Patterns**: See [design.md](design.md#cmdbd-doctor-migration-go-addition) for FilesInWrongLocation() design
 
 | ID   | Task                                  | Parallel | Status  |
 | ---- | ------------------------------------- | -------- | ------- |

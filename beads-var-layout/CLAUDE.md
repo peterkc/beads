@@ -160,15 +160,26 @@ Each phase is independently mergeable and rollback-safe:
 
 - **Phase 1**: VarPath() fallback ensures existing code works
 - **Phase 2**: Consumers use VarPath() which handles both layouts
-- **Phase 3**: Migration optional, doctor shows as "optional" priority
+- **Phase 3a/3b**: Migration optional, doctor shows as "optional" priority
 - **Rollback**: `mv .beads/var/* .beads/ && rmdir .beads/var`
 
 ## Spec Files
 
-- [Requirements](requirements.md) — EARS format
-- [Design](design.md) — Architecture decisions
-- [Tasks](tasks.md) — Phase breakdown
-- [ADR: var/ Directory Pattern](adr/0001-var-directory-for-volatile-files.md)
+| File | Contains | Key Sections |
+|------|----------|--------------|
+| [requirements.md](requirements.md) | EARS format | FR-060-064 (read-both), FR-080-083 (layout:v2) |
+| [design.md](design.md) | Architecture | Decision 5 (coexistence), Workflow Paths, Test Matrices |
+| [tasks.md](tasks.md) | Phase breakdown | 6 phases, dependency graph, code examples |
+| [ADR-0001](adr/0001-var-directory-for-volatile-files.md) | Decision record | Alternatives considered, consequences |
+
+## Pattern Cross-References
+
+| Pattern | Design | Requirements | Tasks |
+|---------|--------|--------------|-------|
+| Read-both | [Decision 5](design.md#decision-5-read-both-coexistence-pattern) | FR-060-064 | T002 |
+| Layout versioning | [R-005 mitigation](design.md#risk-r-005-deep-dive-version-compatibility) | FR-080-083 | T004 |
+| Doctor detection | [migration.go addition](design.md#cmdbd-doctor-migration-go-addition) | FR-065-066 | T020-T023 |
+| Stray cleanup | [Workflow C](design.md#path-c-stray-file-cleanup) | FR-066 | T023 |
 
 ## Execution
 
