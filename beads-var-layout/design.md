@@ -303,6 +303,52 @@ func init() {
 
 **Dependencies**: beads package, cobra
 
+### cmd/bd/doctor/migration.go (Addition)
+
+**Purpose**: Detect files in wrong location when var/ layout is active
+
+**Interface**:
+
+```go
+// FilesInWrongLocation returns volatile files that exist at root
+// when they should be in var/ (var/ layout is active)
+func FilesInWrongLocation(beadsDir string) []string {
+    if !beads.IsVarLayout(beadsDir) {
+        return nil  // Not using var/ layout, no "wrong" location
+    }
+
+    wrongLocation := []string{}
+    for _, f := range beads.VolatileFiles {
+        rootPath := filepath.Join(beadsDir, f)
+        varPath := filepath.Join(beadsDir, "var", f)
+
+        // File at root but var/ layout is active
+        // (Note: may also exist in var/, which is fine - we read var/ first)
+        if fileExists(rootPath) {
+            wrongLocation = append(wrongLocation, f)
+        }
+    }
+    return wrongLocation
+}
+
+// In DetectPendingMigrations(), add:
+if files := FilesInWrongLocation(beadsDir); len(files) > 0 {
+    issues = append(issues, MigrationIssue{
+        Name:        "files-wrong-location",
+        Priority:    4,  // Info level
+        Description: fmt.Sprintf("%d volatile files at root should be in var/", len(files)),
+        Files:       files,
+        Fix:         "bd migrate var --cleanup",
+    })
+}
+```
+
+**Behavior**:
+- Only triggers when var/ layout is active (var/ directory exists)
+- Reports files at root that should be in var/
+- Doesn't auto-move (explicit migration preserves predictability)
+- `bd doctor --fix` offers to run migration with confirmation
+
 ## Data Model
 
 No data model changes. File system layout only.
