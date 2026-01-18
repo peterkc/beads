@@ -14,26 +14,23 @@ location:
   path: specs/fix-routing-defaults-prefix-inheritance
 
 phases:
-  - name: "Phase 1: Tracer Bullet - Disable Auto-Routing Default"
+  - name: "Phase 1: Fix Routing Default"
     type: tracer
     status: pending
     description: "Change routing.mode default from 'auto' to empty, add test"
 
-  - name: "Phase 2: Fix Prefix Inheritance"
-    type: mvs
-    status: pending
-    description: "Fix ensureBeadsDirForPath to correctly inherit prefix with var/ layout"
-
-  - name: "Phase 3: Closing"
+  - name: "Phase 2: Closing"
     type: closing
     status: pending
     merge_strategy: pr
 
 success_criteria:
   - "SC-001: Fresh bd init + bd create works without routing to ~/.beads-planning"
-  - "SC-002: If routing is explicitly enabled, prefix inheritance works correctly"
-  - "SC-003: Existing bd init --contributor workflow still works"
-  - "SC-004: All existing routing tests pass"
+  - "SC-002: Existing bd init --contributor workflow still works"
+  - "SC-003: All existing routing tests pass"
+
+notes:
+  - "Prefix inheritance for var/ layout deferred to PR #1153"
 ---
 
 # Fix Routing Defaults and Prefix Inheritance
@@ -50,7 +47,7 @@ Error: database not initialized: issue_prefix config is missing
 This happens because:
 1. Viper defaults `routing.mode=auto` even without `--contributor` flag
 2. Non-SSH remotes trigger "contributor" role detection
-3. Auto-routing creates `~/.beads-planning` but fails to inherit prefix
+3. Auto-routing creates `~/.beads-planning` without inherited prefix
 
 ## Scope
 
@@ -59,14 +56,55 @@ This happens because:
 | File | Change |
 |------|--------|
 | `internal/config/config.go` | Change `routing.mode` default from `"auto"` to `""` |
-| `cmd/bd/create.go` | Fix `ensureBeadsDirForPath()` prefix inheritance |
-| `cmd/bd/create.go` | Add debug logging for routing decisions |
+| `docs/ROUTING.md` | Update to clarify auto-routing requires opt-in |
+| `docs/CONTRIBUTOR_NAMESPACE_ISOLATION.md` | Fix code example showing `routing.mode` default |
 
 ### Files to Add
 
 | File | Purpose |
 |------|---------|
-| `cmd/bd/routing_test.go` | Test routing defaults behavior |
+| `internal/config/config_test.go` | Test routing mode default is empty |
+
+## Test Matrix
+
+| Scenario | Before Fix | After Fix | Status |
+|----------|------------|-----------|--------|
+| Fresh `bd init` + `bd create` | Routes to ~/.beads-planning, fails with prefix error | Creates issue locally | Must pass |
+| `bd init --contributor` + `bd create` | Routes to ~/.beads-planning | Routes to ~/.beads-planning | Regression check |
+| `bd config set routing.mode auto` + `bd create` | Routes based on role | Routes based on role | Regression check |
+| Existing repo with `routing.mode=auto` in DB | Routes based on role | Routes based on role | Regression check |
+| SSH remote (maintainer role) | Creates locally | Creates locally | Regression check |
+| HTTPS remote + `--contributor` flag | Routes to planning repo | Routes to planning repo | Regression check |
+
+## Documentation Updates
+
+### docs/ROUTING.md
+
+**Line ~48-50**: Update configuration section to clarify opt-in:
+
+```markdown
+# BEFORE
+bd config set routing.mode auto
+
+# AFTER
+# Auto-routing is disabled by default (routing.mode="")
+# Enable with:
+bd init --contributor
+# OR manually:
+bd config set routing.mode auto
+```
+
+### docs/CONTRIBUTOR_NAMESPACE_ISOLATION.md
+
+**Line 127-130**: Fix code example:
+
+```go
+// BEFORE
+v.SetDefault("routing.mode", "auto")
+
+// AFTER
+v.SetDefault("routing.mode", "")  // Empty = disabled by default
+```
 
 ## Links
 

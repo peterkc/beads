@@ -23,20 +23,6 @@ THE SYSTEM SHALL enable auto-routing for subsequent `bd create` commands.
 
 **Rationale**: Allow users to opt-in manually.
 
-### FR-004: Prefix Inheritance on Routing
-
-WHEN auto-routing creates a new beads directory at the target location
-THE SYSTEM SHALL copy `issue_prefix` from the source database to the target database.
-
-**Rationale**: Issues created in routed repos should use the source's prefix.
-
-### FR-005: Prefix Inheritance with var/ Layout
-
-WHEN the target beads directory uses the var/ layout (`var/beads.db`)
-THE SYSTEM SHALL correctly set `issue_prefix` in the target's config table.
-
-**Rationale**: Fix the current bug where prefix isn't set with new layout.
-
 ## Non-Functional Requirements
 
 ### NFR-001: Backward Compatibility
@@ -47,5 +33,12 @@ THE SYSTEM SHALL maintain backward compatibility with existing `bd init --contri
 
 THE SYSTEM SHALL include tests verifying:
 - Default routing mode is empty/disabled
-- Prefix inheritance works with var/ layout
 - Existing contributor workflow unchanged
+
+## Deferred Requirements
+
+The following are deferred to PR #1153 (var/ layout):
+
+- **FR-004**: Prefix inheritance with var/ layout
+- The var/ layout feature isn't released yet, so prefix inheritance bugs
+  with that layout don't affect current users
