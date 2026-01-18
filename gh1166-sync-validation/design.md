@@ -118,6 +118,20 @@ if syncBranch != "" && currentBranch == syncBranch {
 - Consistency with `ValidateSyncBranchName()` error format
 - Include actionable suggestion (use dedicated branch)
 
+## Defense Strategy: Two-Tier Validation
+
+| Tier | Check | Type | Catches |
+|------|-------|------|---------|
+| **Tier 1** | Config-time (`ValidateSyncBranchName`) | Static | `main`, `master` only |
+| **Tier 2** | Runtime (`IsSyncBranchSameAsCurrent`) | **Dynamic** | *Any* branch matching current |
+
+**Why two tiers?**
+- Tier 1 catches the common mistake early (nice UX)
+- Tier 2 is the **primary defense** — works for any branch name (`trunk`, `develop`, `production`, etc.)
+- Tier 2 also catches: manual YAML edits, configs from before the fix, branch switches after config
+
+---
+
 ## Before/After Diagrams
 
 ### BEFORE: Config Path (Bug)
@@ -176,44 +190,55 @@ bd config set sync.branch main
 ### BEFORE: Runtime Path (Bug)
 
 ```
-bd sync (user on main, sync.branch=main)
+bd sync (user on trunk, sync.branch=trunk)
          |
          v
     sync.go:240-247
-    syncBranchName = syncbranch.Get()  --> "main"
+    syncBranchName = syncbranch.Get()  --> "trunk"
     hasSyncBranchConfig = true
          |
          v (no check!)
     CommitToSyncBranch()
          |
          v
-    Creates worktree for "main"
+    Creates worktree for "trunk"
          |
          v
-    ERROR: "main is already checked out"   <-- CONFUSING
+    ERROR: "trunk is already checked out"   <-- CONFUSING
     (or worse: commits all staged files)
 ```
 
-### AFTER: Runtime Path (Fixed)
+### AFTER: Runtime Path (Fixed) — DYNAMIC DETECTION
 
 ```
-bd sync (user on main, sync.branch=main)
+bd sync (user on trunk, sync.branch=trunk)
          |
          v
     sync.go:240-247
-    syncBranchName = syncbranch.Get()  --> "main"
+    syncBranchName = syncbranch.Get()  --> "trunk"
     hasSyncBranchConfig = true
          |
          v
-    IsSyncBranchSameAsCurrent(ctx, "main")   <-- NEW CHECK
+    currentBranch = GetCurrentBranch()  --> "trunk"
          |
-         v (true - matches current branch)
-    FatalError: "Cannot sync to 'main': it's your current branch.
+         v
+    syncBranchName == currentBranch?    <-- DYNAMIC CHECK
+         |
+         v (true - "trunk" == "trunk")
+    FatalError: "Cannot sync to 'trunk': it's your current branch.
                  Checkout a different branch first."
          |
          v
-    Command exits cleanly   <-- CORRECT (clear message)
+    Command exits cleanly   <-- WORKS FOR ANY BRANCH NAME
 ```
+
+**Why dynamic matters**: Repos use various primary branch names:
+- `main`, `master` (common)
+- `trunk` (SVN-style, monorepos)
+- `develop`, `development` (gitflow)
+- `production`, `prod` (deploy branches)
+
+The runtime check catches ALL of these — no hardcoding required.
 
 ---
 
@@ -232,16 +257,20 @@ bd sync (user on main, sync.branch=main)
 | C-07 | `hierarchy.max-depth = 5` | any | SUCCESS | Existing validation |
 | C-08 | `hierarchy.max-depth = -1` | any | ERROR | Existing validation |
 
-### Runtime Validation Tests
+### Runtime Validation Tests (DYNAMIC — Works for Any Branch Name)
 
 | Test ID | sync.branch | Current Branch | Expected Result | Validates |
 |---------|-------------|----------------|-----------------|-----------|
-| R-01 | `main` | `main` | ERROR: on sync branch | Fix 2 |
+| R-01 | `main` | `main` | ERROR: on sync branch | Dynamic check |
 | R-02 | `main` | `feature/foo` | SUCCESS (sync proceeds) | No regression |
 | R-03 | `beads-sync` | `main` | SUCCESS (sync proceeds) | No regression |
-| R-04 | `beads-sync` | `beads-sync` | ERROR: on sync branch | Fix 2 |
+| R-04 | `beads-sync` | `beads-sync` | ERROR: on sync branch | Dynamic check |
 | R-05 | (not set) | `main` | SUCCESS (no sync-branch mode) | No regression |
-| R-06 | `feature/x` | `feature/x` | ERROR: on sync branch | Fix 2 (dynamic) |
+| R-06 | `trunk` | `trunk` | ERROR: on sync branch | **Dynamic (non-main)** |
+| R-07 | `develop` | `develop` | ERROR: on sync branch | **Dynamic (gitflow)** |
+| R-08 | `production` | `production` | ERROR: on sync branch | **Dynamic (deploy)** |
+
+**Key insight**: R-06, R-07, R-08 prove the runtime check is dynamic — it compares `sync.branch` to `GetCurrentBranch()` at runtime, not against a hardcoded list.
 
 ### Edge Cases
 
