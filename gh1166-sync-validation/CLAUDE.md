@@ -19,7 +19,7 @@ location:
   path: specs/gh1166-sync-validation
 
 beads:
-  epic: spec-xxx  # To be assigned
+  epic: oss-0rx  # ACF oss/ repo (fork contribution tracking)
   worktree_path: .worktrees/gh1166-sync-validation
   worktree_branch: feature/gh1166-sync-validation
 
