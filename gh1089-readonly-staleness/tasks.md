@@ -63,9 +63,11 @@ go test -v ./cmd/bd/... -run TestReadonly
    - Verify behavior matches `autoimport.CheckStaleness`
    - Add test similar to `internal/autoimport/symlink_test.go`
 
-4. **Edge case: Worktree context**
-   - Verify staleness check works in worktrees
-   - DB path may differ from main repo
+4. **Edge case: Worktree context** [REQUIRED]
+   - File: `cmd/bd/staleness_test.go`
+   - Create test that runs staleness check from worktree
+   - Verify `dbPath` resolves correctly (not main repo path)
+   - Use `t.TempDir()` to simulate worktree structure
 
 ### Validation
 

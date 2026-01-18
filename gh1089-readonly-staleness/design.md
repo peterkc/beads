@@ -134,6 +134,14 @@ if useReadOnly {
 | Clock skew causes false positive | Low | Low | Acceptable: opens read-write unnecessarily |
 | Git operations change mtime unpredictably | Medium | Low | Matches existing behavior in autoimport |
 | Performance regression from extra stat calls | Very Low | Low | Two stat calls are ~microseconds |
+| Worktree DB path resolution | Low | Medium | Test explicitly in worktree context (Phase 2) |
+
+### Non-Risks (Explicitly Considered)
+
+| Concern | Why Not a Risk |
+|---------|----------------|
+| Daemon mode race condition | This code only runs in `--no-daemon` mode; daemon has separate staleness path |
+| Backward compatibility | Internal behavior change, no API/config impact |
 
 ## Test Strategy
 
