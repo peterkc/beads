@@ -15,7 +15,7 @@ location:
   path: specs/beads-var-layout
 
 beads:
-  epic: null  # Set after bd create
+  epic: oss-ibb
   worktree_path: .worktrees/beads-var-layout
   worktree_branch: feature/beads-var-layout
 
@@ -29,33 +29,40 @@ success_criteria:
 phases:
   - name: 'Phase 1: End-to-End Tracer'
     type: tracer
-    status: pending
+    status: completed
+    bead_id: oss-ibb.1
     description: 'paths.go + DatabasePath + bd init var/ default + layout:v2'
 
   - name: 'Phase 2: Remaining Consumers'
     type: mvs
-    status: pending
+    status: completed
+    bead_id: oss-ibb.2
     description: 'Update 5 remaining consumer files to use VarPath()'
 
   - name: 'Phase 3a: Doctor Detection'
     type: mvs
-    status: pending
+    status: completed
+    bead_id: oss-ibb.3
     description: 'needsVarMigration(), FilesInWrongLocation(), doctor --fix'
 
   - name: 'Phase 3b: Migration Command'
     type: mvs
-    status: pending
+    status: completed
+    bead_id: oss-ibb.4
     description: 'bd migrate var command with --dry-run'
 
   - name: 'Phase 4: Documentation & Tests'
     type: mvs
-    status: pending
+    status: completed
+    bead_id: oss-ibb.5
     description: 'ARCHITECTURE.md, integration tests, test matrices'
 
   - name: 'Phase 5: Closing'
     type: closing
-    status: pending
+    status: completed
+    bead_id: oss-ibb.6
     merge_strategy: pr
+    pr_url: https://github.com/steveyegge/beads/pull/1153
 ---
 
 # .beads/var/ Layout Migration
