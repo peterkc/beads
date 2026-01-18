@@ -1,5 +1,11 @@
 # ADR-0001: Role Detection Strategy for Contributor Routing
 
+> **Note**: This ADR is for GH#1174 but lives in the GH#1165 spec directory
+> because both issues share the routing/detection domain.
+>
+> - GH#1165: Fix routing defaults (Phase 1)
+> - GH#1174: Improve detection (Phase 2, blocked by #1165)
+
 ## Status
 
 Proposed
@@ -162,11 +168,57 @@ func detectRole(repoPath string) (UserRole, error) {
 
 ### GitHub Token Discovery
 
-Check in order:
-1. `GITHUB_TOKEN` env var
-2. `gh auth token` (if gh installed)
-3. `git config github.token`
-4. None (skip API check)
+**Important**: go-github and git CLI use **separate authentication systems**.
+
+| System | Used For | Auth Method |
+|--------|----------|-------------|
+| Git CLI | push/pull | SSH keys, credential helpers |
+| go-github | API calls | OAuth/PAT tokens |
+
+**Discovery Order** (check each, use first found):
+
+```go
+func discoverGitHubToken() string {
+    // 1. Explicit env var (CI/CD, user-set)
+    if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+        return token
+    }
+
+    // 2. gh CLI (most common for developers)
+    if output, err := exec.Command("gh", "auth", "token").Output(); err == nil {
+        return strings.TrimSpace(string(output))
+    }
+
+    // 3. Git credential helper (may have stored PAT)
+    if token := queryGitCredential("github.com"); token != "" {
+        return token
+    }
+
+    // 4. No token available - skip API, use heuristics
+    return ""
+}
+
+func queryGitCredential(host string) string {
+    cmd := exec.Command("git", "credential", "fill")
+    cmd.Stdin = strings.NewReader("protocol=https\nhost=" + host + "\n\n")
+    output, err := cmd.Output()
+    if err != nil {
+        return ""
+    }
+    // Parse "password=<token>" from output
+    for _, line := range strings.Split(string(output), "\n") {
+        if strings.HasPrefix(line, "password=") {
+            return strings.TrimPrefix(line, "password=")
+        }
+    }
+    return ""
+}
+```
+
+**Sources**:
+- Git does NOT share auth with GitHub API
+- Git credential helper can be queried programmatically
+- `gh auth token` works if user has authenticated gh CLI
 
 ### API Fields Needed
 
