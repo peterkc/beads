@@ -15,20 +15,16 @@ phases:
   - name: "Phase 1: Upstream Remote Detection"
     type: tracer
     status: pending
-    description: "Add upstream remote check to DetectUserRole()"
+    description: "Add upstream remote check + docs for git-only detection"
   - name: "Phase 2: GitHub API Integration"
     type: mvs
     status: pending
-    description: "Add optional go-github dependency for authoritative fork detection"
+    description: "Add go-github dependency, token discovery + API docs"
   - name: "Phase 3: RepoContext Integration"
     type: mvs
     status: pending
-    description: "Integrate role detection with RepoContext, add caching"
-  - name: "Phase 4: Documentation"
-    type: mvs
-    status: pending
-    description: "Update ROUTING.md, CONTRIBUTOR_NAMESPACE_ISOLATION.md, TROUBLESHOOTING.md"
-  - name: "Phase 5: Closing"
+    description: "Integrate with RepoContext, add caching + troubleshooting docs"
+  - name: "Phase 4: Closing"
     type: closing
     status: pending
     merge_strategy: pr
@@ -73,12 +69,19 @@ Current SSH/HTTPS heuristic has edge cases:
 
 ## Scope
 
+### Functions to Modify
+
+| Function | File | Change |
+|----------|------|--------|
+| `DetectUserRole()` | `internal/routing/routing.go` | Add upstream remote check before SSH/HTTPS heuristic |
+| `NewRepoContext()` | `internal/beads/context.go` | Populate new role detection fields during construction |
+
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| `internal/routing/routing.go` | Add upstream remote check, GitHub API integration |
-| `internal/beads/context.go` | Extend RepoContext with role detection fields |
+| `internal/routing/routing.go` | Add `HasUpstreamRemote()`, update `DetectUserRole()` |
+| `internal/beads/context.go` | Extend `RepoContext` struct with role fields |
 | `go.mod`, `go.sum` | Add go-github/v81 optional dependency |
 | `docs/ROUTING.md` | Update detection strategy documentation |
 | `docs/CONTRIBUTOR_NAMESPACE_ISOLATION.md` | Add upstream remote + API detection |
@@ -91,6 +94,17 @@ Current SSH/HTTPS heuristic has edge cases:
 | `internal/routing/detection_test.go` | Role detection unit tests |
 | `internal/routing/token_discovery_test.go` | Token discovery path tests |
 | `internal/routing/github_client_test.go` | go-github integration tests (httptest) |
+
+### Existing Test Infrastructure
+
+Reference: `cmd/bd/contributor_routing_e2e_test.go` (930+ lines)
+
+| Pattern | Usage |
+|---------|-------|
+| `contributorRoutingEnv` | Test fixture helper for routing scenarios |
+| `TestExplicitRoleOverride` | Foundation for role override tests |
+| `//go:build integration` | Build tag pattern for integration tests |
+| Table-driven tests | Go idiom used throughout |
 
 ## Constraints
 

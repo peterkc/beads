@@ -5,7 +5,7 @@
 ## Phase 1: Upstream Remote Detection
 
 **Type**: Tracer Bullet
-**Goal**: Add git-only upstream remote detection (no new dependencies)
+**Goal**: Add git-only upstream remote detection with documentation
 
 ### Tasks
 
@@ -26,20 +26,34 @@
    - Use bare repo pattern for fork simulation
    - Verify contributor detection via upstream remote
 
+5. Update `docs/ROUTING.md` with upstream detection
+   - Add "Upstream Remote Detection" section
+   - Document that `upstream` remote signals fork/contributor
+
 ### Validation
 
 ```bash
 go test ./internal/routing/... -v
+# Expected: PASS, including TestUpstreamRemoteDetection
+
 go test ./cmd/bd/... -tags=integration -run=TestUpstreamRemoteDetection -v
+# Expected: "Fork detected via upstream remote" in verbose output
+
 golangci-lint run ./internal/routing/...
+# Expected: Exit 0, no new warnings
+
+lychee --offline docs/ROUTING.md
+# Expected: All internal links valid
 ```
+
+**Success criteria**: All commands exit 0, no test failures.
 
 ---
 
 ## Phase 2: GitHub API Integration
 
 **Type**: MVS Slice
-**Goal**: Add optional go-github dependency for authoritative fork detection
+**Goal**: Add go-github dependency, token discovery, and API documentation
 
 ### Tasks
 
@@ -67,20 +81,35 @@ golangci-lint run ./internal/routing/...
    - Mock API responses for fork/non-fork scenarios
    - Test error handling (rate limit, network error)
 
+6. Update `docs/CONTRIBUTOR_NAMESPACE_ISOLATION.md`
+   - Add GitHub API detection section
+   - Document token discovery order
+   - Add inline code comments for `discoverGitHubToken()`
+
 ### Validation
 
 ```bash
 go build ./...
+# Expected: Exit 0, no build errors
+
 go test ./internal/routing/... -v
+# Expected: PASS for TestTokenDiscovery*, TestGitHubChecker*
+
 golangci-lint run ./internal/routing/...
+# Expected: Exit 0, no new warnings
+
+lychee --offline docs/CONTRIBUTOR_NAMESPACE_ISOLATION.md
+# Expected: All internal links valid
 ```
+
+**Success criteria**: Build passes, all token discovery paths tested.
 
 ---
 
 ## Phase 3: RepoContext Integration
 
 **Type**: MVS Slice
-**Goal**: Integrate role detection with RepoContext, add caching
+**Goal**: Integrate with RepoContext, add caching, and troubleshooting docs
 
 ### Tasks
 
@@ -104,54 +133,37 @@ golangci-lint run ./internal/routing/...
    - Verify cache write after API call
    - Verify cache read on subsequent calls
 
+6. Update `docs/TROUBLESHOOTING.md`
+   - Add "Role incorrectly detected" section
+   - Add API rate limit troubleshooting
+   - Add token configuration instructions
+   - Add cache invalidation instructions
+
+7. Update `docs/ROUTING.md` with complete 4-tier strategy
+   - Replace SSH/HTTPS heuristic section with full detection strategy
+   - Add cache invalidation instructions
+
 ### Validation
 
 ```bash
 go test ./internal/beads/... -v
+# Expected: PASS for TestRepoContext*, including new role fields
+
 go test ./cmd/bd/... -tags=integration -run=TestRoleCaching -v
+# Expected: Cache hit on second call (verify via verbose logging)
+
 golangci-lint run ./...
+# Expected: Exit 0, no new warnings
+
+lychee --offline docs/TROUBLESHOOTING.md docs/ROUTING.md
+# Expected: All internal links valid
 ```
+
+**Success criteria**: Caching works (2nd call uses cached value), RepoContext populated correctly.
 
 ---
 
-## Phase 4: Documentation
-
-**Type**: MVS Slice
-**Goal**: Update documentation to reflect new detection strategy
-
-### Tasks
-
-1. Update `docs/ROUTING.md`
-   - Replace SSH/HTTPS heuristic section with 4-tier strategy
-   - Add token discovery documentation
-   - Add cache invalidation instructions
-
-2. Update `docs/CONTRIBUTOR_NAMESPACE_ISOLATION.md`
-   - Add upstream remote as fork signal
-   - Add GitHub API detection section
-   - Update code examples
-
-3. Update `docs/TROUBLESHOOTING.md`
-   - Add "Role incorrectly detected" section
-   - Add API rate limit troubleshooting
-   - Add token configuration instructions
-
-4. [P] Add inline code comments for key functions
-   - `DetectUserRole()` - explain detection priority
-   - `discoverGitHubToken()` - explain discovery order
-
-### Validation
-
-```bash
-# Link check (internal only)
-lychee --offline docs/*.md
-
-# Manual review of rendered markdown
-```
-
----
-
-## Phase 5: Closing
+## Phase 4: Closing
 
 **Type**: Closing
 **Merge Strategy**: PR
@@ -165,11 +177,16 @@ lychee --offline docs/*.md
    golangci-lint run ./...
    ```
 
-2. Create PR against upstream
+2. Final documentation review
+   ```bash
+   lychee --offline docs/*.md
+   ```
+
+3. Create PR against upstream
    - Title: `feat(routing): improve contributor detection for SSH forks`
    - Reference GH#1174
 
-3. Clean up worktree after merge
+4. Clean up worktree after merge
    ```bash
    git checkout main && git pull
    git worktree remove .worktrees/improve-contributor-detection

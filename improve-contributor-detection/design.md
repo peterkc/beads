@@ -147,6 +147,20 @@ func setupForkScenario(t *testing.T) (forkDir string) {
 | Stale cached role | L | M | Document invalidation |
 | Private repo API access | M | L | Detect 404, clear warning |
 
+### Rollback Strategy
+
+If detection causes issues after deployment:
+
+1. **Immediate**: User can override with `git config beads.role maintainer|contributor`
+2. **Quick fix**: Revert detection order to SSH/HTTPS-first (single-line change in `DetectUserRole()`)
+3. **Full rollback**: Remove go-github dependency, revert to pure heuristic
+
+**Feature flag consideration**: The 4-tier detection can be gated behind `git config beads.detection.strategy`:
+- `legacy`: SSH/HTTPS only (current behavior)
+- `hybrid`: Full 4-tier (default after this PR)
+
+This allows gradual rollout and easy rollback without code changes.
+
 ## Applied Patterns
 
 - **Interface segregation**: TokenDiscoverer, GitHubChecker enable mocking
