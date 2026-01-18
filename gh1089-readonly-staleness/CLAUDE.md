@@ -62,16 +62,20 @@ Check staleness **before** determining store mode (Option B from the original is
 
 ### Files to Modify
 
-| File | Changes |
-|------|---------|
-| `cmd/bd/main.go` | Add pre-store staleness check before line 749 |
-| `cmd/bd/staleness.go` | Add `isJSONLNewerThanDB()` helper function |
-| `cmd/bd/staleness_test.go` | Add tests for new helper |
+| File | Symbol | Line | Changes |
+|------|--------|------|---------|
+| `cmd/bd/main.go` | `init()` | 749 | Add staleness check after `isReadOnlyCommand()` call |
+| `cmd/bd/staleness.go` | (new) `isJSONLNewerThanDB()` | — | Add helper function (~15 lines) |
+| `cmd/bd/staleness_test.go` | (new) `TestIsJSONLNewerThanDB` | — | Add unit tests |
 
 ### Files to Read (Context)
 
-- `internal/autoimport/autoimport.go` — Existing mtime comparison patterns
-- `cmd/bd/autoflush.go:203-340` — `autoImportIfNewer()` implementation
+| File | Symbol | Lines | Purpose |
+|------|--------|-------|---------|
+| `cmd/bd/main.go` | `isReadOnlyCommand()` | 108-110 | Current read-only decision logic |
+| `cmd/bd/staleness.go` | `ensureDatabaseFresh()` | 20-69 | Existing staleness check (post-store) |
+| `cmd/bd/autoflush.go` | `autoImportIfNewer()` | 203-340 | Where ClearAllExportHashes fails |
+| `internal/autoimport/autoimport.go` | `CheckStaleness()` | 285-307 | Existing mtime pattern with Lstat |
 
 ## Links
 
