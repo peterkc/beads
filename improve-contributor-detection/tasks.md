@@ -32,6 +32,8 @@
 
 ### Validation
 
+> **Note**: Test functions referenced below (e.g., `TestUpstreamRemoteDetection`) are created in tasks 3-4 of this phase. Run validation after completing all tasks.
+
 ```bash
 go test ./internal/routing/... -v
 # Expected: PASS, including TestUpstreamRemoteDetection
@@ -87,6 +89,8 @@ lychee --offline docs/ROUTING.md
    - Add inline code comments for `discoverGitHubToken()`
 
 ### Validation
+
+> **Note**: Test functions referenced below are created in tasks 4-5 of this phase. Run validation after completing all tasks.
 
 ```bash
 go build ./...
@@ -145,6 +149,8 @@ lychee --offline docs/CONTRIBUTOR_NAMESPACE_ISOLATION.md
 
 ### Validation
 
+> **Note**: Test functions referenced below are created in task 5 of this phase. Run validation after completing all tasks.
+
 ```bash
 go test ./internal/beads/... -v
 # Expected: PASS for TestRepoContext*, including new role fields
@@ -182,15 +188,39 @@ lychee --offline docs/TROUBLESHOOTING.md docs/ROUTING.md
    lychee --offline docs/*.md
    ```
 
-3. Create PR against upstream
+3. **Verify Success Criteria** (see mapping below)
+
+4. Create PR against upstream
    - Title: `feat(routing): improve contributor detection for SSH forks`
    - Reference GH#1174
 
-4. Clean up worktree after merge
+5. Clean up worktree after merge
    ```bash
    git checkout main && git pull
    git worktree remove .worktrees/improve-contributor-detection
    ```
+
+### Success Criteria Verification
+
+| SC | Criterion | Verification Command | Expected |
+|----|-----------|---------------------|----------|
+| SC-001 | Fork+SSH detected as contributor | `go test -run=TestForkSSHDetection -v` | Role: contributor, Source: upstream or api |
+| SC-002 | Maintainer+HTTPS detected correctly | `go test -run=TestMaintainerHTTPS -v` | Role: maintainer, Source: api or config |
+| SC-003 | Offline caching works | `go test -run=TestRoleCaching -v` | Cached role used without network |
+| SC-004 | Graceful degradation | `go test -run=TestNoTokenFallback -v` | Heuristic used, warning logged |
+| SC-005 | Existing tests pass | `go test ./cmd/bd/... -tags=integration` | All PASS, no regressions |
+
+### Manual Acceptance Check
+
+Before creating PR, run this scenario manually in a fork repo with SSH:
+
+```bash
+# In a real fork with upstream remote
+cd /path/to/fork-with-upstream
+git remote -v  # Should show origin + upstream
+bd create --title "Test issue" --dry-run
+# Verify output shows: "Role: contributor (detected via upstream remote)"
+```
 
 ---
 

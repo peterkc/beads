@@ -39,6 +39,37 @@ Detection Priority (highest to lowest):
 
 ## Component Design
 
+### DetectUserRole Pseudocode
+
+```
+function DetectUserRole(repoPath):
+    // Tier 1: Check cached config (instant)
+    cached := git config --get beads.role
+    if cached != "":
+        return Role(cached), "config"
+
+    // Tier 2: Check upstream remote (git-only, fast)
+    if HasUpstreamRemote(repoPath):
+        return Contributor, "upstream"
+
+    // Tier 3: Query GitHub API (if token available)
+    token := DiscoverGitHubToken()
+    if token != "":
+        forkInfo, err := CheckForkStatus(token, owner, repo)
+        if err == nil:
+            role := Contributor if forkInfo.IsFork else Maintainer
+            git config beads.role role  // Cache for future
+            return role, "api"
+        else:
+            log.Warn("GitHub API error, using heuristic")
+
+    // Tier 4: SSH/HTTPS heuristic (fallback)
+    if originURL.startsWith("git@"):
+        return Maintainer, "heuristic"  // SSH → likely maintainer
+    else:
+        return Contributor, "heuristic"  // HTTPS → likely contributor
+```
+
 ### TokenDiscoverer Interface
 
 ```go
@@ -50,6 +81,65 @@ type TokenDiscoverer interface {
 ```
 
 Enables testing without real tokens.
+
+### Token Discovery Implementation Pattern
+
+```go
+// DiscoverGitHubToken tries sources in priority order
+func DiscoverGitHubToken() string {
+    discoverer := &RealTokenDiscoverer{}
+
+    // Priority 1: Explicit environment variable
+    if token := discoverer.FromEnv(); token != "" {
+        return token
+    }
+
+    // Priority 2: gh CLI (most common for developers)
+    if token, err := discoverer.FromGhCLI(); err == nil && token != "" {
+        return token
+    }
+
+    // Priority 3: Git credential helper
+    if token, err := discoverer.FromGitCredential(); err == nil && token != "" {
+        return token
+    }
+
+    // No token found - caller should fall back to heuristic
+    return ""
+}
+
+// RealTokenDiscoverer implements TokenDiscoverer
+type RealTokenDiscoverer struct{}
+
+func (d *RealTokenDiscoverer) FromEnv() string {
+    return os.Getenv("GITHUB_TOKEN")
+}
+
+func (d *RealTokenDiscoverer) FromGhCLI() (string, error) {
+    cmd := exec.Command("gh", "auth", "token")
+    out, err := cmd.Output()
+    if err != nil {
+        return "", err
+    }
+    return strings.TrimSpace(string(out)), nil
+}
+
+func (d *RealTokenDiscoverer) FromGitCredential() (string, error) {
+    cmd := exec.Command("git", "credential", "fill")
+    cmd.Stdin = strings.NewReader("protocol=https\nhost=github.com\n\n")
+    out, err := cmd.Output()
+    if err != nil {
+        return "", err
+    }
+    // Parse "password=<token>" from output
+    for _, line := range strings.Split(string(out), "\n") {
+        if strings.HasPrefix(line, "password=") {
+            return strings.TrimPrefix(line, "password="), nil
+        }
+    }
+    return "", fmt.Errorf("no password in credential output")
+}
+```
 
 ### GitHubChecker Interface
 
@@ -146,6 +236,8 @@ func setupForkScenario(t *testing.T) (forkDir string) {
 | Token discovery fails silently | L | M | Verbose logging |
 | Stale cached role | L | M | Document invalidation |
 | Private repo API access | M | L | Detect 404, clear warning |
+| First-run latency (NFR-001) | L | M | Cache after first call (2s → 10ms), document in TROUBLESHOOTING.md |
+| Breaking existing routing tests | L | H | Run full test suite before PR, add regression test for SSH/HTTPS heuristic |
 
 ### Rollback Strategy
 
