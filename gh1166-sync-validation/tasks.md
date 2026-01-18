@@ -19,8 +19,11 @@ End-to-end path: YAML config set → validation → error
 ### Validation
 
 ```bash
-# Unit test
+# Unit test for new validation
 go test ./internal/config/... -run TestValidateYamlConfigValue -v
+
+# Verify import doesn't create cycle
+go build ./...
 
 # Manual verification
 cd /tmp/test-repo && bd init
@@ -58,8 +61,11 @@ Defense in depth: catch cases where config was set before validation existed or 
 ### Validation
 
 ```bash
-# Integration test
-go test ./cmd/bd/... -run TestSync_FailsWhenOnSyncBranch -v
+# Run sync-related tests
+go test ./cmd/bd/... -run TestSync -v
+
+# Run full test suite to catch regressions
+go test ./... -v
 
 # Manual verification (requires manual config.yaml edit to bypass Phase 1)
 cd /tmp/test-repo
@@ -73,7 +79,7 @@ bd sync
 
 - [ ] `bd sync` fails gracefully when on sync-branch
 - [ ] Error message is clear and actionable
-- [ ] All existing sync tests pass
+- [ ] Sync tests succeed: `go test ./cmd/bd/... -run TestSync -v`
 
 ---
 
@@ -95,10 +101,13 @@ bd sync
 # Full test suite
 go test ./... -v
 
-# Verify no regressions
+# Verify no regressions in specific areas
 go test ./cmd/bd/... -run TestSync -v
 go test ./internal/config/... -v
 go test ./internal/syncbranch/... -v
+
+# Lint check
+golangci-lint run ./...
 ```
 
 ### PR Description Template
@@ -121,11 +130,11 @@ Fixes #1166 - `bd sync` commits files outside `.beads/` when sync.branch equals 
 - [x] Unit test: YAML config validation rejects main/master
 - [x] Integration test: `bd sync` fails when on sync-branch
 - [x] Manual verification: `bd config set sync.branch main` → error
-- [x] All existing tests pass
+- [x] Full test suite succeeds: `go test ./...`
 ```
 
 ### Success Criteria
 
 - [ ] PR created and linked to GH#1166
-- [ ] Tests pass in CI
+- [ ] CI passes (`go test ./...` and `golangci-lint run`)
 - [ ] Worktree cleaned up after merge

@@ -1,14 +1,4 @@
-# GH#1166: Fix Sync-Branch Validation Bypass
-
-## Overview
-
-Fix two validation gaps that allow `sync.branch = main` configuration, causing `bd sync` to commit all staged files instead of only `.beads/` files.
-
-**Issue**: https://github.com/steveyegge/beads/issues/1166
-
-## Frontmatter
-
-```yaml
+---
 spec_type: implementation
 status: draft
 created: 2026-01-18
@@ -19,7 +9,7 @@ location:
   path: specs/gh1166-sync-validation
 
 beads:
-  epic: oss-0rx  # ACF oss/ repo (fork contribution tracking)
+  epic: oss-0rx
   worktree_path: .worktrees/gh1166-sync-validation
   worktree_branch: feature/gh1166-sync-validation
 
@@ -44,8 +34,16 @@ success_criteria:
   - "SC-001: bd config set sync.branch main returns error"
   - "SC-002: bd sync fails gracefully when on sync-branch"
   - "SC-003: Existing ValidateSyncBranchName() and IsSyncBranchSameAsCurrent() utilities reused"
-  - "SC-004: All existing tests pass"
-```
+  - "SC-004: All existing tests pass (go test ./...)"
+---
+
+# GH#1166: Fix Sync-Branch Validation Bypass
+
+## Overview
+
+Fix two validation gaps that allow `sync.branch = main` configuration, causing `bd sync` to commit all staged files instead of only `.beads/` files.
+
+**Issue**: https://github.com/steveyegge/beads/issues/1166
 
 ## Scope
 
@@ -77,6 +75,16 @@ success_criteria:
 - `cmd/bd/doctor/fix/fix_integration_test.go::TestSyncBranchHealth_CurrentlyOnSyncBranch` — Tests doctor detection
 
 **Gap**: No test for YAML config path validation bypass.
+
+## Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Import cycle config→syncbranch | Low | High | Verified: no reverse dependency exists |
+| Breaking valid sync-branch configs | Low | Medium | Existing tests cover valid cases |
+| Runtime check in wrong location | Medium | High | Check placement verified at line 247 (before worktree entry) |
+
+**Rollback**: Revert single commit; no data migration required.
 
 ## Related Files
 
