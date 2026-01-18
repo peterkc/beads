@@ -118,6 +118,142 @@ if syncBranch != "" && currentBranch == syncBranch {
 - Consistency with `ValidateSyncBranchName()` error format
 - Include actionable suggestion (use dedicated branch)
 
+## Before/After Diagrams
+
+### BEFORE: Config Path (Bug)
+
+```
+bd config set sync.branch main
+         |
+         v
+    config.go:59
+    IsYamlOnlyKey("sync.branch")
+         |
+         v (true)
+    SetYamlConfig()
+         |
+         v
+    validateYamlConfigValue()
+         |
+         +---> case "hierarchy.max-depth": validate
+         |
+         +---> default: return nil    <-- BUG: sync-branch not checked!
+         |
+         v
+    config.yaml updated
+    sync.branch = main   <-- SAVED (should have been rejected)
+```
+
+### AFTER: Config Path (Fixed)
+
+```
+bd config set sync.branch main
+         |
+         v
+    config.go:59
+    IsYamlOnlyKey("sync.branch")
+         |
+         v (true)
+    SetYamlConfig()
+         |
+         v
+    validateYamlConfigValue()
+         |
+         +---> case "hierarchy.max-depth": validate
+         |
+         +---> case "sync-branch", "sync.branch":    <-- NEW
+         |              |
+         |              v
+         |     syncbranch.ValidateSyncBranchName(value)
+         |              |
+         |              v
+         |     ERROR: "cannot use 'main' as sync branch"
+         |
+         v
+    Command exits with error   <-- CORRECT
+```
+
+### BEFORE: Runtime Path (Bug)
+
+```
+bd sync (user on main, sync.branch=main)
+         |
+         v
+    sync.go:240-247
+    syncBranchName = syncbranch.Get()  --> "main"
+    hasSyncBranchConfig = true
+         |
+         v (no check!)
+    CommitToSyncBranch()
+         |
+         v
+    Creates worktree for "main"
+         |
+         v
+    ERROR: "main is already checked out"   <-- CONFUSING
+    (or worse: commits all staged files)
+```
+
+### AFTER: Runtime Path (Fixed)
+
+```
+bd sync (user on main, sync.branch=main)
+         |
+         v
+    sync.go:240-247
+    syncBranchName = syncbranch.Get()  --> "main"
+    hasSyncBranchConfig = true
+         |
+         v
+    IsSyncBranchSameAsCurrent(ctx, "main")   <-- NEW CHECK
+         |
+         v (true - matches current branch)
+    FatalError: "Cannot sync to 'main': it's your current branch.
+                 Checkout a different branch first."
+         |
+         v
+    Command exits cleanly   <-- CORRECT (clear message)
+```
+
+---
+
+## Test Matrix
+
+### Config-Time Validation Tests
+
+| Test ID | Input | Current Branch | Expected Result | Validates |
+|---------|-------|----------------|-----------------|-----------|
+| C-01 | `sync.branch = main` | any | ERROR: cannot use main | Fix 1 |
+| C-02 | `sync.branch = master` | any | ERROR: cannot use master | Fix 1 |
+| C-03 | `sync-branch = main` | any | ERROR: cannot use main | Fix 1 (alias) |
+| C-04 | `sync.branch = beads-sync` | any | SUCCESS | No regression |
+| C-05 | `sync.branch = feature/sync` | any | SUCCESS | No regression |
+| C-06 | `sync.branch = ""` | any | SUCCESS (unset) | No regression |
+| C-07 | `hierarchy.max-depth = 5` | any | SUCCESS | Existing validation |
+| C-08 | `hierarchy.max-depth = -1` | any | ERROR | Existing validation |
+
+### Runtime Validation Tests
+
+| Test ID | sync.branch | Current Branch | Expected Result | Validates |
+|---------|-------------|----------------|-----------------|-----------|
+| R-01 | `main` | `main` | ERROR: on sync branch | Fix 2 |
+| R-02 | `main` | `feature/foo` | SUCCESS (sync proceeds) | No regression |
+| R-03 | `beads-sync` | `main` | SUCCESS (sync proceeds) | No regression |
+| R-04 | `beads-sync` | `beads-sync` | ERROR: on sync branch | Fix 2 |
+| R-05 | (not set) | `main` | SUCCESS (no sync-branch mode) | No regression |
+| R-06 | `feature/x` | `feature/x` | ERROR: on sync branch | Fix 2 (dynamic) |
+
+### Edge Cases
+
+| Test ID | Scenario | Expected Result | Notes |
+|---------|----------|-----------------|-------|
+| E-01 | Detached HEAD + sync.branch=main | SUCCESS | No current branch to match |
+| E-02 | Config set via YAML edit (bypass CLI) | Runtime catches it | Defense in depth |
+| E-03 | Config set before fix, upgrade beads | Runtime catches it | Backward compat |
+| E-04 | sync.branch with trailing whitespace | Normalized, then validated | Edge case |
+
+---
+
 ## Test Strategy
 
 ### Unit Tests
