@@ -1,0 +1,158 @@
+# C4 Level 2: Container Diagram
+# Shows the major components within beads
+
+title: {
+  label: "Beads Container Diagram"
+  near: top-center
+  style: {
+    font-size: 28
+    bold: true
+  }
+}
+
+# Actors (simplified from context)
+users: "Developers / AI Agents" {
+  shape: person
+  style: {
+    fill: "#08427b"
+    font-color: "#ffffff"
+  }
+}
+
+# System Boundary
+beads: "Beads System" {
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#1168bd"
+    stroke-width: 2
+  }
+
+  # CLI Layer
+  cli: "bd CLI\n\n[Go Binary]\nCobra-based commands\n(create, list, update, sync...)" {
+    style: {
+      fill: "#438dd5"
+      font-color: "#ffffff"
+    }
+  }
+
+  # Daemon
+  daemon: "Daemon\n\n[Background Process]\nPer-workspace daemon\nfor auto-sync" {
+    style: {
+      fill: "#438dd5"
+      font-color: "#ffffff"
+    }
+  }
+
+  # RPC Layer
+  rpc: "RPC Server\n\n[Unix Socket]\nbd.sock communication" {
+    style: {
+      fill: "#438dd5"
+      font-color: "#ffffff"
+    }
+  }
+
+  # Storage
+  sqlite: "SQLite DB\n\n[Database]\nbeads.db - local\nworking copy" {
+    style: {
+      fill: "#438dd5"
+      font-color: "#ffffff"
+    }
+  }
+
+  jsonl: "JSONL Files\n\n[File Store]\nissues.jsonl -\ngit-tracked source of truth" {
+    style: {
+      fill: "#438dd5"
+      font-color: "#ffffff"
+    }
+  }
+
+  # Sync Components
+  autoimport: "Auto-Import\n\n[Component]\nJSONL -> SQLite\non git pull" {
+    style: {
+      fill: "#85bbf0"
+      font-color: "#000000"
+    }
+  }
+
+  autoexport: "Auto-Export\n\n[Component]\nSQLite -> JSONL\nwith 5s debounce" {
+    style: {
+      fill: "#85bbf0"
+      font-color: "#000000"
+    }
+  }
+}
+
+# External Systems
+git: "Git\n\n[External]\npush/pull/hooks" {
+  style: {
+    fill: "#999999"
+    font-color: "#ffffff"
+  }
+}
+
+# Connections
+users -> beads.cli: "Commands" {
+  style.stroke: "#707070"
+}
+
+beads.cli -> beads.rpc: "RPC calls\n(try first)" {
+  style.stroke: "#707070"
+}
+
+beads.cli -> beads.sqlite: "Direct SQL\n(fallback)" {
+  style.stroke: "#707070"
+  style.stroke-dash: 3
+}
+
+beads.rpc -> beads.daemon: "Manages" {
+  style.stroke: "#707070"
+}
+
+beads.daemon -> beads.sqlite: "Read/Write" {
+  style.stroke: "#707070"
+}
+
+beads.daemon -> beads.autoexport: "Triggers" {
+  style.stroke: "#707070"
+}
+
+beads.autoexport -> beads.jsonl: "Writes" {
+  style.stroke: "#707070"
+}
+
+beads.autoimport -> beads.jsonl: "Reads" {
+  style.stroke: "#707070"
+}
+
+beads.autoimport -> beads.sqlite: "Updates" {
+  style.stroke: "#707070"
+}
+
+beads.jsonl -> git: "Tracked in\nrepository" {
+  style.stroke: "#707070"
+}
+
+# Legend
+legend: {
+  near: bottom-right
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#cccccc"
+  }
+
+  container: "Container" {
+    style.fill: "#438dd5"
+    width: 60
+    height: 30
+  }
+  component: "Component" {
+    style.fill: "#85bbf0"
+    width: 60
+    height: 30
+  }
+  external: "External" {
+    style.fill: "#999999"
+    width: 60
+    height: 30
+  }
+}

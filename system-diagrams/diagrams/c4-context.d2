@@ -1,0 +1,125 @@
+# C4 Level 1: System Context
+# Shows beads (bd) in relation to external actors and systems
+
+title: {
+  label: "Beads System Context"
+  near: top-center
+  style: {
+    font-size: 28
+    bold: true
+  }
+}
+
+# Actors
+developer: "Developer" {
+  shape: person
+  style: {
+    fill: "#08427b"
+    stroke: "#073b6f"
+    font-color: "#ffffff"
+  }
+}
+
+ai_agent: "AI Agent\n(Claude, Aider, etc.)" {
+  shape: person
+  style: {
+    fill: "#08427b"
+    stroke: "#073b6f"
+    font-color: "#ffffff"
+  }
+}
+
+# The System
+beads: "Beads (bd)\n\nGit-backed issue tracker\nfor AI-assisted development" {
+  style: {
+    fill: "#1168bd"
+    stroke: "#0b4884"
+    font-color: "#ffffff"
+  }
+}
+
+# External Systems
+git_remote: "Git Remote\n(GitHub, GitLab)\n\n[External System]" {
+  style: {
+    fill: "#999999"
+    stroke: "#6b6b6b"
+    font-color: "#ffffff"
+  }
+}
+
+linear: "Linear\n\n[External System]" {
+  style: {
+    fill: "#999999"
+    stroke: "#6b6b6b"
+    font-color: "#ffffff"
+  }
+}
+
+anthropic: "Anthropic API\n\n[External System]" {
+  style: {
+    fill: "#999999"
+    stroke: "#6b6b6b"
+    font-color: "#ffffff"
+  }
+}
+
+file_system: "Local File System\n(.beads/ directory)\n\n[External System]" {
+  style: {
+    fill: "#999999"
+    stroke: "#6b6b6b"
+    font-color: "#ffffff"
+  }
+}
+
+# Relationships
+developer -> beads: "Creates, updates,\nqueries issues" {
+  style.stroke: "#707070"
+}
+
+ai_agent -> beads: "Manages work items,\ntracks progress" {
+  style.stroke: "#707070"
+}
+
+beads -> git_remote: "Syncs issues via\nJSONL files" {
+  style.stroke: "#707070"
+}
+
+beads -> linear: "Imports issues\n(optional)" {
+  style.stroke: "#707070"
+  style.stroke-dash: 3
+}
+
+beads -> anthropic: "AI compaction\n(optional)" {
+  style.stroke: "#707070"
+  style.stroke-dash: 3
+}
+
+beads -> file_system: "SQLite DB,\nJSONL files" {
+  style.stroke: "#707070"
+}
+
+# Legend
+legend: {
+  near: bottom-right
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#cccccc"
+  }
+
+  actor: "Person" {
+    shape: person
+    style.fill: "#08427b"
+    width: 30
+    height: 30
+  }
+  system: "System" {
+    style.fill: "#1168bd"
+    width: 60
+    height: 30
+  }
+  external: "External" {
+    style.fill: "#999999"
+    width: 60
+    height: 30
+  }
+}

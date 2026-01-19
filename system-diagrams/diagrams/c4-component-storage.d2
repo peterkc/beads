@@ -1,0 +1,184 @@
+# C4 Level 3: Storage Layer Components
+# internal/storage/* packages
+
+title: {
+  label: "Storage Layer Components"
+  near: top-center
+  style: {
+    font-size: 28
+    bold: true
+  }
+}
+
+# Storage Interface
+storage: "internal/storage" {
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#1168bd"
+    stroke-width: 2
+  }
+
+  interface: "Storage Interface\n\n[Interface]\nstore.go\nDefines CRUD operations\nfor issues, deps, labels" {
+    style: {
+      fill: "#438dd5"
+      font-color: "#ffffff"
+    }
+  }
+}
+
+# Implementations
+implementations: "Storage Implementations" {
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#438dd5"
+    stroke-width: 2
+  }
+
+  sqlite: "SQLite Store\n\n[Package]\ninternal/storage/sqlite/\nProduction default\nWASM-based (go-sqlite3)" {
+    style: {
+      fill: "#85bbf0"
+      font-color: "#000000"
+    }
+  }
+
+  dolt: "Dolt Store\n\n[Package]\ninternal/storage/dolt/\nVersion-controlled DB\n(experimental)" {
+    style: {
+      fill: "#85bbf0"
+      font-color: "#000000"
+    }
+  }
+
+  memory: "Memory Store\n\n[Package]\ninternal/storage/memory/\nFor testing\n(in-memory)" {
+    style: {
+      fill: "#85bbf0"
+      font-color: "#000000"
+    }
+  }
+
+  factory: "Factory\n\n[Package]\ninternal/storage/factory/\nCreates appropriate\nstorage instance" {
+    style: {
+      fill: "#c9e4ff"
+      font-color: "#000000"
+    }
+  }
+}
+
+# Supporting Components
+support: "Supporting" {
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#999999"
+  }
+
+  migrations: "Migrations\n\n[Package]\nsqlite/migrations/\nSchema evolution" {
+    style: {
+      fill: "#e1e1e1"
+      font-color: "#000000"
+    }
+  }
+
+  types: "Types\n\n[Package]\ninternal/types/\nIssue, Dependency,\nLabel, Comment" {
+    style: {
+      fill: "#e1e1e1"
+      font-color: "#000000"
+    }
+  }
+
+  config: "Config\n\n[Package]\ninternal/config/\nViper settings" {
+    style: {
+      fill: "#e1e1e1"
+      font-color: "#000000"
+    }
+  }
+}
+
+# External
+external: "External Dependencies" {
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#999999"
+    stroke-dash: 3
+  }
+
+  ncruces: "ncruces/go-sqlite3\n\n[Library]\nWASM SQLite" {
+    style: {
+      fill: "#999999"
+      font-color: "#ffffff"
+    }
+  }
+
+  dolthub: "dolthub/driver\n\n[Library]\nDolt SQL driver" {
+    style: {
+      fill: "#999999"
+      font-color: "#ffffff"
+    }
+  }
+}
+
+# Connections - Factory creates implementations
+implementations.factory -> implementations.sqlite: "Creates" {
+  style.stroke: "#707070"
+}
+implementations.factory -> implementations.dolt: "Creates" {
+  style.stroke: "#707070"
+  style.stroke-dash: 3
+}
+implementations.factory -> implementations.memory: "Creates" {
+  style.stroke: "#707070"
+  style.stroke-dash: 3
+}
+
+# Implementations fulfill interface
+implementations.sqlite -> storage.interface: "Implements" {
+  style.stroke: "#1168bd"
+}
+implementations.dolt -> storage.interface: "Implements" {
+  style.stroke: "#1168bd"
+  style.stroke-dash: 3
+}
+implementations.memory -> storage.interface: "Implements" {
+  style.stroke: "#1168bd"
+  style.stroke-dash: 3
+}
+
+# Dependencies
+implementations.sqlite -> support.migrations: "Uses" {
+  style.stroke: "#707070"
+}
+implementations.sqlite -> support.types: "Uses" {
+  style.stroke: "#707070"
+}
+implementations.sqlite -> support.config: "Uses" {
+  style.stroke: "#707070"
+}
+implementations.sqlite -> external.ncruces: "Embeds" {
+  style.stroke: "#707070"
+}
+implementations.dolt -> external.dolthub: "Uses" {
+  style.stroke: "#707070"
+}
+
+# Legend
+legend: {
+  near: bottom-right
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#cccccc"
+  }
+
+  iface: "Interface" {
+    style.fill: "#438dd5"
+    width: 60
+    height: 25
+  }
+  impl: "Implementation" {
+    style.fill: "#85bbf0"
+    width: 60
+    height: 25
+  }
+  util: "Support" {
+    style.fill: "#e1e1e1"
+    width: 60
+    height: 25
+  }
+}

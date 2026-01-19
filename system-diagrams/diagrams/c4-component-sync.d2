@@ -1,0 +1,203 @@
+# C4 Level 3: Sync Layer Components
+# Packages handling JSONL <-> SQLite synchronization
+
+title: {
+  label: "Sync Layer Components"
+  near: top-center
+  style: {
+    font-size: 28
+    bold: true
+  }
+}
+
+# Data Stores (external to this layer)
+stores: "Data Stores" {
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#999999"
+    stroke-dash: 3
+  }
+
+  sqlite: "SQLite\n\n[Database]\nLocal working copy" {
+    style: {
+      fill: "#999999"
+      font-color: "#ffffff"
+    }
+  }
+
+  jsonl: "JSONL\n\n[File]\nGit-tracked truth" {
+    style: {
+      fill: "#999999"
+      font-color: "#ffffff"
+    }
+  }
+
+  git: "Git\n\n[External]\nRemote sync" {
+    style: {
+      fill: "#999999"
+      font-color: "#ffffff"
+    }
+  }
+}
+
+# Import Path (JSONL -> SQLite)
+import_path: "Import Path (Pull)" {
+  style: {
+    fill: "#e8f5e9"
+    stroke: "#4caf50"
+    stroke-width: 2
+  }
+
+  autoimport: "Auto-Import\n\n[Package]\ninternal/autoimport/\nDetects stale DB,\ntriggers import" {
+    style: {
+      fill: "#81c784"
+      font-color: "#000000"
+    }
+  }
+
+  importer: "Importer\n\n[Package]\ninternal/importer/\nJSONL parsing,\nhash-based merge" {
+    style: {
+      fill: "#81c784"
+      font-color: "#000000"
+    }
+  }
+
+  merge: "Merge\n\n[Package]\ninternal/merge/\nConflict resolution,\nJSONL merging" {
+    style: {
+      fill: "#c8e6c9"
+      font-color: "#000000"
+    }
+  }
+}
+
+# Export Path (SQLite -> JSONL)
+export_path: "Export Path (Push)" {
+  style: {
+    fill: "#fff3e0"
+    stroke: "#ff9800"
+    stroke-width: 2
+  }
+
+  export: "Export\n\n[Package]\ninternal/export/\nSQLite -> JSONL\nconversion" {
+    style: {
+      fill: "#ffb74d"
+      font-color: "#000000"
+    }
+  }
+
+  flush: "FlushManager\n\n[Component]\ncmd/bd/autoflush.go\n5s debounce,\nevent-driven" {
+    style: {
+      fill: "#ffe0b2"
+      font-color: "#000000"
+    }
+  }
+}
+
+# Sync Branch (Protected Branch Support)
+sync_branch: "Protected Branch Sync" {
+  style: {
+    fill: "#e3f2fd"
+    stroke: "#2196f3"
+    stroke-width: 2
+  }
+
+  syncbranch: "SyncBranch\n\n[Package]\ninternal/syncbranch/\nManages beads-sync\nbranch workflow" {
+    style: {
+      fill: "#64b5f6"
+      font-color: "#000000"
+    }
+  }
+
+  worktree: "Worktree\n\n[Component]\nsyncbranch/worktree.go\nGit worktree ops" {
+    style: {
+      fill: "#bbdefb"
+      font-color: "#000000"
+    }
+  }
+}
+
+# Git Integration
+git_layer: "Git Integration" {
+  style: {
+    fill: "#fce4ec"
+    stroke: "#e91e63"
+  }
+
+  git_pkg: "Git\n\n[Package]\ninternal/git/\nGit operations,\nworktree detection" {
+    style: {
+      fill: "#f48fb1"
+      font-color: "#000000"
+    }
+  }
+}
+
+# Flow connections
+# Import flow
+stores.jsonl -> import_path.autoimport: "Checks mtime" {
+  style.stroke: "#4caf50"
+}
+import_path.autoimport -> import_path.importer: "Triggers" {
+  style.stroke: "#4caf50"
+}
+import_path.importer -> import_path.merge: "Uses" {
+  style.stroke: "#4caf50"
+}
+import_path.importer -> stores.sqlite: "Updates" {
+  style.stroke: "#4caf50"
+}
+
+# Export flow
+stores.sqlite -> export_path.flush: "On change" {
+  style.stroke: "#ff9800"
+}
+export_path.flush -> export_path.export: "After debounce" {
+  style.stroke: "#ff9800"
+}
+export_path.export -> stores.jsonl: "Writes" {
+  style.stroke: "#ff9800"
+}
+
+# Sync branch flow
+stores.jsonl -> sync_branch.syncbranch: "Manages" {
+  style.stroke: "#2196f3"
+}
+sync_branch.syncbranch -> sync_branch.worktree: "Uses" {
+  style.stroke: "#2196f3"
+}
+sync_branch.syncbranch -> git_layer.git_pkg: "Uses" {
+  style.stroke: "#2196f3"
+}
+sync_branch.worktree -> stores.git: "Git ops" {
+  style.stroke: "#2196f3"
+}
+
+# Cross-layer
+import_path.importer -> git_layer.git_pkg: "Git state" {
+  style.stroke: "#707070"
+  style.stroke-dash: 3
+}
+
+# Legend
+legend: {
+  near: bottom-right
+  style: {
+    fill: "#f5f5f5"
+    stroke: "#cccccc"
+  }
+
+  import_l: "Import" {
+    style.fill: "#81c784"
+    width: 50
+    height: 20
+  }
+  export_l: "Export" {
+    style.fill: "#ffb74d"
+    width: 50
+    height: 20
+  }
+  sync_l: "Sync" {
+    style.fill: "#64b5f6"
+    width: 50
+    height: 20
+  }
+}
