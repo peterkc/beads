@@ -151,7 +151,72 @@ Local to repo (`.git/config`), not global.
 | `cmd/bd/init.go` | Add contributor prompt before wizard selection |
 | `cmd/bd/sync_git.go` | Add `isPushPermissionDenied()` function |
 | `cmd/bd/sync.go` | Add recovery guidance message on push failure |
-| `internal/routing/routing.go` | Remove URL heuristic fallback, require explicit config |
+| `internal/beads/context.go` | Add `Role()`, `IsContributor()`, `IsMaintainer()`, `RequireRole()` |
+| `internal/routing/routing.go` | Remove URL heuristic, use `RepoContext.Role()` |
+
+## RepoContext Integration
+
+**Option**: Add role helpers to `RepoContext` (methods, not fields).
+
+```go
+type RepoContext struct {
+    BeadsDir    string
+    RepoRoot    string
+    CWDRepoRoot string
+    IsRedirected bool
+    IsWorktree   bool
+    // Role accessed via methods, not cached fields
+}
+```
+
+**Helpers** (functions, not cached fields — avoids staleness):
+
+```go
+// Role reads beads.role from git config (fresh each call, ~1ms)
+func (rc *RepoContext) Role() (UserRole, bool) {
+    output, err := rc.GitOutput(context.Background(), "config", "--get", "beads.role")
+    if err != nil {
+        return "", false  // Not configured
+    }
+    return UserRole(strings.TrimSpace(output)), true
+}
+
+// IsContributor returns true if user is configured as contributor
+func (rc *RepoContext) IsContributor() bool {
+    role, ok := rc.Role()
+    return ok && role == Contributor
+}
+
+// IsMaintainer returns true if user is configured as maintainer
+func (rc *RepoContext) IsMaintainer() bool {
+    role, ok := rc.Role()
+    return ok && role == Maintainer
+}
+
+// RequireRole returns error if role not configured (forces init prompt)
+func (rc *RepoContext) RequireRole() error {
+    if _, ok := rc.Role(); !ok {
+        return ErrRoleNotConfigured
+    }
+    return nil
+}
+```
+
+**Why functions instead of cached fields**:
+- Git config reads are fast (~1ms)
+- Eliminates staleness concern entirely
+- No sync.Once complexity for role
+- Consistent: RepoContext paths are stable, role is config-based
+
+**Trade-offs**:
+
+| Pro | Con |
+|-----|-----|
+| Centralized access via `rc.Role()` | Minor overhead (~1ms per call) |
+| Always fresh, no staleness | Role detection moves from routing.go |
+| Simple API for callers | — |
+
+**Recommendation**: Yes, add to RepoContext as functions. Fresh reads eliminate staleness with negligible overhead.
 
 ## DetectUserRole Changes
 

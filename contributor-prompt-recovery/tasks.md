@@ -1,5 +1,30 @@
 # Tasks: Contributor Prompt Recovery
 
+## Test Matrix
+
+| Scenario | Command | Before | After | Status |
+|----------|---------|--------|-------|--------|
+| Fresh init, answer N | `bd init` → N | No prompt | Prompt, set maintainer | 🔲 |
+| Fresh init, answer Y | `bd init` → Y | No prompt | Prompt, run contributor wizard | 🔲 |
+| Init with --contributor | `bd init --contributor` | Wizard | Skip prompt, run wizard | 🔲 |
+| Init with --team | `bd init --team` | Wizard | Skip prompt, run wizard | 🔲 |
+| Reinit, keep role | `bd init` (role exists) → N | Re-runs wizard | Show current, keep | 🔲 |
+| Reinit, change role | `bd init` (role exists) → Y | Re-runs wizard | Clear config, re-prompt | 🔲 |
+| SSH fork user | `bd create` (SSH remote) | Detected as maintainer | Uses beads.role config | 🔲 |
+| HTTPS user | `bd create` (HTTPS remote) | Detected as contributor | Uses beads.role config | 🔲 |
+| No config set | `bd create` (no beads.role) | URL heuristic | Error: role not configured | 🔲 |
+| Push denied (GitHub) | `bd sync` → 403 | Generic error | Show recovery guidance | 🔲 |
+| Push denied (GitLab) | `bd sync` → permission denied | Generic error | Show recovery guidance | 🔲 |
+| Push denied (generic) | `bd sync` → not allowed | Generic error | Show recovery guidance | 🔲 |
+| Push succeeds | `bd sync` → OK | Normal | No change | 🔲 |
+| Non-permission error | `bd sync` → network error | Generic error | No guidance (pass through) | 🔲 |
+| RepoContext.Role() | Config exists | — | Returns (role, true) | 🔲 |
+| RepoContext.Role() | No config | — | Returns ("", false) | 🔲 |
+| RepoContext.RequireRole() | Config exists | — | Returns nil | 🔲 |
+| RepoContext.RequireRole() | No config | — | Returns ErrRoleNotConfigured | 🔲 |
+
+---
+
 ## Phase 1: Init Prompt
 
 **Type**: Tracer Bullet
@@ -22,12 +47,17 @@
    - Test flag bypass (`--contributor`, `--team`)
    - Test config setting after prompt
 
-4. Remove URL heuristic from `internal/routing/routing.go`
-   - `DetectUserRole()` should only check `beads.role` config
-   - Return `ErrRoleNotConfigured` if not set
+4. Add role helpers to `internal/beads/context.go`
+   - `Role() (UserRole, bool)` — reads git config fresh each call
+   - `IsContributor()`, `IsMaintainer()` — convenience checks
+   - `RequireRole()` — returns error if not configured
+
+5. Update `internal/routing/routing.go`
+   - Remove URL heuristic from `DetectUserRole()`
+   - Use `RepoContext.Role()` instead
    - Update callers to handle unconfigured state
 
-5. Update `docs/QUICKSTART.md` with prompt behavior
+6. Update `docs/QUICKSTART.md` with prompt behavior
 
 ### Validation
 
