@@ -12,7 +12,7 @@
 | Reinit, change role | `bd init` (role exists) → Y | Re-runs wizard | Clear config, re-prompt | 🔲 |
 | SSH fork user | `bd create` (SSH remote) | Detected as maintainer | Uses beads.role config | 🔲 |
 | HTTPS user | `bd create` (HTTPS remote) | Detected as contributor | Uses beads.role config | 🔲 |
-| No config set | `bd create` (no beads.role) | URL heuristic | Error: role not configured | 🔲 |
+| No config set | `bd create` (no beads.role) | URL heuristic silently | URL heuristic + warning | 🔲 |
 | Push denied (GitHub) | `bd sync` → 403 | Generic error | Show recovery guidance | 🔲 |
 | Push denied (GitLab) | `bd sync` → permission denied | Generic error | Show recovery guidance | 🔲 |
 | Push denied (generic) | `bd sync` → not allowed | Generic error | Show recovery guidance | 🔲 |
@@ -24,6 +24,17 @@
 | RepoContext.RequireRole() | No config | — | Returns ErrRoleNotConfigured | 🔲 |
 | bd doctor | No beads.role | — | Warning + "Fix: bd init" | 🔲 |
 | bd doctor | Has beads.role | — | OK + shows role | 🔲 |
+| IsContributor() | role=contributor | — | Returns true | 🔲 |
+| IsMaintainer() | role=maintainer | — | Returns true | 🔲 |
+| IsContributor() | No config | — | Returns false | 🔲 |
+| Existing .beads/, no role | `bd init` | Full wizard | Prompt role only, skip wizard | 🔲 |
+| Stale config | .beads/ missing, config exists | — | Warn about stale config | 🔲 |
+| Invalid config | beads.role=invalid | — | Treat as not configured | 🔲 |
+| No remote | `bd create` (no origin) | Contributor | Heuristic (contributor) + warning | 🔲 |
+| Auth error | `bd sync` → authentication failed | — | No guidance (not permission error) | 🔲 |
+| **REGRESSION**: Existing maintainer | `bd create` (SSH, no changes) | Works | Still works (heuristic + warning) | 🔲 |
+| **REGRESSION**: Existing contributor | `bd create` (HTTPS, no changes) | Works | Still works (heuristic + warning) | 🔲 |
+| **REGRESSION**: Non-interactive | `bd create --title "X"` in script | Works | Still works (no prompt) | 🔲 |
 
 ---
 
