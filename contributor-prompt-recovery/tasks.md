@@ -58,40 +58,30 @@ git rebase upstream/main
 ## Phase 1: Init Prompt
 
 **Type**: Tracer Bullet
-**Goal**: Add contributor prompt to plain `bd init`
+**Goal**: Add contributor prompt to plain `bd init` with TTY detection
 
 ### Tasks
 
-1. Add `promptContributorMode()` function to `cmd/bd/init.go`
+1. Add `shouldPrompt()` TTY detection to `cmd/bd/init.go`
+   - Use `golang.org/x/term.IsTerminal()`
+   - Skip prompt in non-interactive contexts (CI, scripts)
+
+2. Add `promptContributorMode()` function to `cmd/bd/init.go`
    - Check for existing `beads.role` git config
    - If exists: show current, offer to change
    - If not: prompt "Contributing to someone else's repo? [y/N]"
 
-2. Integrate prompt into init flow
+3. Integrate prompt into init flow
    - Before wizard selection logic
    - Skip if `--contributor` or `--team` flag present
+   - Skip if `!shouldPrompt()` (non-interactive)
    - Set `git config beads.role` based on answer
 
-3. Add unit tests for prompt logic
+4. Add unit tests for prompt logic
    - Test existing config detection
    - Test flag bypass (`--contributor`, `--team`)
    - Test config setting after prompt
-
-4. Add role helpers to `internal/beads/context.go`
-   - `Role() (UserRole, bool)` — reads git config fresh each call
-   - `IsContributor()`, `IsMaintainer()` — convenience checks
-   - `RequireRole()` — returns error if not configured
-
-5. Update `internal/routing/routing.go`
-   - Config check first, URL heuristic fallback with warning
-   - Show deprecation warning when using heuristic
-   - Keep existing users working (graceful degradation)
-
-6. Add `checkBeadsRole()` to `cmd/bd/doctor.go`
-   - Status: warning if not configured
-   - Fix: `bd init` (not a new command)
-
-7. Update `docs/QUICKSTART.md` with prompt behavior
+   - Test TTY detection bypass
 
 ### Validation
 
@@ -102,7 +92,59 @@ go test ./cmd/bd/... -run TestInitPrompt -v
 
 ---
 
-## Phase 2: Push Error Detection
+## Phase 2: Role Helpers
+
+**Type**: MVS Slice
+**Goal**: Add RepoContext role methods to context.go
+
+### Tasks
+
+1. Add role helpers to `internal/beads/context.go`
+   - `Role() (UserRole, bool)` — reads git config fresh each call
+   - `IsContributor()`, `IsMaintainer()` — convenience checks
+   - `RequireRole()` — returns error if not configured
+
+2. Add unit tests for role helpers
+   - Test config exists → returns role
+   - Test no config → returns ("", false)
+   - Test BEADS_DIR redirect → implicit contributor
+
+### Validation
+
+```bash
+go test ./internal/beads/... -run TestRole -v
+```
+
+---
+
+## Phase 3: Migration Infrastructure
+
+**Type**: MVS Slice
+**Goal**: Update routing.go with deprecation warning, add doctor check, update docs
+
+### Tasks
+
+1. Update `internal/routing/routing.go`
+   - Config check first, URL heuristic fallback with warning
+   - Show deprecation warning when using heuristic
+   - Keep existing users working (graceful degradation)
+
+2. Add `checkBeadsRole()` to `cmd/bd/doctor.go`
+   - Status: warning if not configured
+   - Fix: `bd init` (not a new command)
+
+3. Update `docs/QUICKSTART.md` with prompt behavior
+
+### Validation
+
+```bash
+go test ./cmd/bd/... -run TestDoctor -v
+go test ./internal/routing/... -v
+```
+
+---
+
+## Phase 4: Push Error Detection
 
 **Type**: MVS Slice
 **Goal**: Detect permission errors and show helpful guidance
@@ -132,7 +174,7 @@ go test ./cmd/bd/... -run TestPushErrorDetection -v
 
 ---
 
-## Phase 3: Closing
+## Phase 5: Closing
 
 **Type**: Closing
 **Merge Strategy**: PR

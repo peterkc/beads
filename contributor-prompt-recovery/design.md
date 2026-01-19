@@ -26,6 +26,63 @@ DetectUserRole()
                                    (forces user through init prompt)
 ```
 
+## Current Implementation (Before Changes)
+
+The current init flow is **flag-based only**—no interactive prompt:
+
+```
+bd init (current)
+   |
+   +-- Lines 44-469: Setup Phase
+   |     +-- Validate flags, create .beads/
+   |     +-- Initialize database (SQLite/Dolt)
+   |     +-- Set prefix, metadata, sync branch
+   |     +-- Import existing issues
+   |     +-- Handle stealth mode
+   |
+   +-- Lines 471-486: Wizard Execution (flag-gated)
+   |     contributor, _ := cmd.Flags().GetBool("contributor")
+   |     team, _ := cmd.Flags().GetBool("team")
+   |
+   |     if contributor { runContributorWizard(ctx, store) }
+   |     if team { runTeamWizard(ctx, store) }
+   |
+   +-- Lines 492-582: Post-Init Tasks
+         +-- Fork detection, hooks, diagnostics
+```
+
+### Current DetectUserRole() (routing.go:33-70)
+
+```go
+func DetectUserRole(repoPath string) (UserRole, error) {
+    // 1. Check git config for explicit beads.role
+    // 2. SSH (git@...) → Maintainer
+    // 3. HTTPS with @ → Maintainer
+    // 4. Plain HTTPS → Contributor
+}
+```
+
+**Gap**: `DetectUserRole` exists but is **not called during init**. Wizard selection is purely flag-based.
+
+### Insertion Point
+
+**Lines 470-486 in init.go** — after database init, before closing store:
+
+```go
+// NEW: Add before existing wizard checks
+if shouldPrompt() {
+    role := promptContributorMode()  // Returns "contributor", "maintainer", or ""
+    if role == "contributor" {
+        contributor = true  // Triggers existing wizard
+    }
+}
+
+// EXISTING: Flag-based checks remain for explicit overrides
+if contributor {
+    if err := runContributorWizard(ctx, store) { ... }
+}
+```
+
 ## Design Decisions
 
 ### Why Not Auto-Detection?
