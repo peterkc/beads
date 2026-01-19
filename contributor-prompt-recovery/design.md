@@ -6,16 +6,24 @@ Two-gate system with no upfront detection:
 
 ```
 bd init
-├─ --contributor flag? → Contributor wizard (no prompt)
-├─ --team flag?        → Team wizard (no prompt)
-└─ (plain)             → "Contributing to someone else's repo? [y/N]"
-                          ├─ [Y] → Contributor wizard
-                          └─ [N] → Proceed as maintainer
+   |
+   +-- --contributor flag? --> Contributor wizard (no prompt)
+   +-- --team flag?        --> Team wizard (no prompt)
+   +-- (plain)             --> "Contributing to someone else's repo? [y/N]"
+                                  |
+                                  +-- [Y] --> Contributor wizard
+                                  +-- [N] --> Proceed as maintainer
 
 bd sync (if push fails)
-├─ Parse error: "Permission denied" / "403" / "not allowed"
-├─ "⚠ Push access denied. Set up contributor mode? [Y/n]"
-└─ [Y] → Run contributor wizard + migrate existing issues
+   |
+   +-- Parse error: "Permission denied" / "403" / "not allowed"
+   +-- Show recovery guidance pointing to existing docs/commands
+
+DetectUserRole()
+   |
+   +-- git config beads.role? --> use config
+   +-- (no config)            --> ErrRoleNotConfigured
+                                   (forces user through init prompt)
 ```
 
 ## Design Decisions
@@ -35,7 +43,7 @@ bd sync (if push fails)
 | User declares intent | Respects explicit configuration |
 | Provider-agnostic | Error parsing works everywhere |
 | No token required | Git-only operation |
-| Handles human error | Recovery wizard catches mistakes |
+| Handles human error | Recovery guidance catches mistakes |
 
 ## Key Components
 
@@ -95,11 +103,43 @@ if isPushPermissionDenied(output) {
 
 No wizard, no --force, no new commands. Just helpful guidance pointing to existing docs.
 
-## Config Storage
+## Reinit Behavior
 
-```bash
-git config beads.role contributor  # or maintainer
-git config --unset beads.role      # clear
+```
+bd init (beads.role exists?)
+   |
+   +-- No  --> Prompt: "Contributing to someone else's repo? [y/N]"
+   |              |
+   |              +-- [Y] --> set beads.role=contributor --> Contributor wizard
+   |              +-- [N] --> set beads.role=maintainer  --> Continue
+   |
+   +-- Yes --> Show: "Already configured as {role}."
+                  |
+                  +-- "Change? [y/N]"
+                        |
+                        +-- [Y] --> Clear config --> Re-prompt
+                        +-- [N] --> Keep config --> Continue
+```
+
+## Config Lifecycle
+
+```
+beads.role config
+   |
+   +-- SET via:
+   |      +-- bd init prompt (user answers Y/N)
+   |      +-- bd init --contributor flag
+   |      +-- bd init --team flag
+   |      +-- Manual: git config beads.role contributor
+   |
+   +-- READ via:
+   |      +-- DetectUserRole() --> only source of truth
+   |
+   +-- CLEARED via:
+   |      +-- Manual: git config --unset beads.role
+   |
+   +-- STALE detection:
+          +-- .beads/ missing but config exists? --> Warn user
 ```
 
 Local to repo (`.git/config`), not global.
