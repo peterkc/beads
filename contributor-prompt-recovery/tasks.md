@@ -40,6 +40,21 @@
 
 ---
 
+## Prerequisites
+
+Before starting implementation:
+
+```bash
+# Rebase worktree on latest upstream
+cd /Volumes/atlas/beads/.worktrees/improve-contributor-detection
+git fetch upstream
+git rebase upstream/main
+```
+
+**Why**: Upstream 356ab92 refactored sync.go significantly. Multiple `gitPush` call sites exist now.
+
+---
+
 ## Phase 1: Init Prompt
 
 **Type**: Tracer Bullet
