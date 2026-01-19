@@ -18,8 +18,9 @@ phases:
 
   - name: "Phase 2: Test Coverage"
     type: mvs
-    status: pending
+    status: completed
     description: "Mock provider tests, cross-repo integration tests"
+    commit: 7e61c130
 
   - name: "Phase 3: Closing"
     type: closing
