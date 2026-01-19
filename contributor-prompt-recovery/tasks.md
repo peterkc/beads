@@ -35,6 +35,8 @@
 | **REGRESSION**: Existing maintainer | `bd create` (SSH, no changes) | Works | Still works (heuristic + warning) | 🔲 |
 | **REGRESSION**: Existing contributor | `bd create` (HTTPS, no changes) | Works | Still works (heuristic + warning) | 🔲 |
 | **REGRESSION**: Non-interactive | `bd create --title "X"` in script | Works | Still works (no prompt) | 🔲 |
+| **REGRESSION**: BEADS_DIR user | `bd create` with BEADS_DIR set | Works | No warning (implicit contributor) | 🔲 |
+| **REGRESSION**: sync-branch mode | `bd sync` with sync.branch | Works | No change to sync flow | 🔲 |
 
 ---
 

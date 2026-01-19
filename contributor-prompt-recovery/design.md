@@ -174,7 +174,13 @@ type RepoContext struct {
 
 ```go
 // Role reads beads.role from git config (fresh each call, ~1ms)
+// If BEADS_DIR is set, returns Contributor implicitly (no config needed)
 func (rc *RepoContext) Role() (UserRole, bool) {
+    // BEADS_DIR implies contributor (external repo mode)
+    if rc.IsRedirected {
+        return Contributor, true
+    }
+
     output, err := rc.GitOutput(context.Background(), "config", "--get", "beads.role")
     if err != nil {
         return "", false  // Not configured
