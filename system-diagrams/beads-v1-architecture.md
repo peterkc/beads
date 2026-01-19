@@ -1,4 +1,4 @@
-# Beads v2.0 Architecture Proposal
+# Beads v1.0 Architecture Proposal
 
 > First Principles Redesign for Clean Code, DRY, Extensibility
 
@@ -25,7 +25,7 @@ Current beads has **117K LoC** across **36 internal packages**. Analysis reveals
 
 ### Current Assumptions to Challenge
 
-| Assumption | Challenge | v2.0 Approach |
+| Assumption | Challenge | v1.0 Approach |
 |------------|-----------|---------------|
 | One storage interface | 62 methods is too many | **Split into focused interfaces** |
 | Config injected everywhere | 13 files import config | **Functional options pattern** |
@@ -34,7 +34,7 @@ Current beads has **117K LoC** across **36 internal packages**. Analysis reveals
 
 ---
 
-## Proposed v2.0 Architecture
+## Proposed v1.0 Architecture
 
 ### Layer 1: Core Domain (Pure Go, No Dependencies)
 

@@ -54,10 +54,10 @@ d2 --watch diagrams/c4-context.d2 diagrams/generated/c4-context.svg
 - [x] Automation script (`scripts/gen-deps.sh`)
 - [ ] CI integration (future)
 
-## v2.0 Architecture Proposal
+## v1.0 Architecture Proposal
 
 Based on first principles analysis and code exploration, we've drafted a comprehensive
-v2.0 architecture proposal. See [beads-v2-architecture.md](beads-v2-architecture.md).
+v1.0 architecture proposal. See [beads-v1-architecture.md](beads-v1-architecture.md).
 
 **Key findings from analysis:**
 
@@ -79,4 +79,4 @@ v2.0 architecture proposal. See [beads-v2-architecture.md](beads-v2-architecture
 
 - [ARCHITECTURE.md](../../docs/ARCHITECTURE.md) - Text-based architecture docs
 - [INTERNALS.md](../../docs/INTERNALS.md) - Implementation details
-- [beads-v2-architecture.md](beads-v2-architecture.md) - v2.0 redesign proposal
+- [beads-v1-architecture.md](beads-v1-architecture.md) - v1.0 redesign proposal
