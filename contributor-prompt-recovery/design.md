@@ -151,8 +151,9 @@ Local to repo (`.git/config`), not global.
 | `cmd/bd/init.go` | Add contributor prompt before wizard selection |
 | `cmd/bd/sync_git.go` | Add `isPushPermissionDenied()` function |
 | `cmd/bd/sync.go` | Add recovery guidance message on push failure |
+| `cmd/bd/doctor.go` | Add `checkBeadsRole()` check, fix points to `bd init` |
 | `internal/beads/context.go` | Add `Role()`, `IsContributor()`, `IsMaintainer()`, `RequireRole()` |
-| `internal/routing/routing.go` | Remove URL heuristic, use `RepoContext.Role()` |
+| `internal/routing/routing.go` | Keep URL heuristic as fallback (graceful degradation) |
 
 ## RepoContext Integration
 
@@ -218,12 +219,60 @@ func (rc *RepoContext) RequireRole() error {
 
 **Recommendation**: Yes, add to RepoContext as functions. Fresh reads eliminate staleness with negligible overhead.
 
-## DetectUserRole Changes
+## Migration Strategy
 
-Current detection has a problematic fallback:
+Existing users don't have `beads.role` configured. Use existing infrastructure:
+
+### bd doctor: Add Role Check
 
 ```go
-// BEFORE (problematic)
+func checkBeadsRole(path string) doctorCheck {
+    role, err := getGitConfig(path, "beads.role")
+    if err != nil || role == "" {
+        return doctorCheck{
+            Name:    "Role Configuration",
+            Status:  statusWarning,
+            Message: "beads.role not configured",
+            Detail:  "Run 'bd init' to configure your role.",
+            Fix:     "bd init",
+        }
+    }
+    return doctorCheck{
+        Name:    "Role Configuration",
+        Status:  statusOK,
+        Message: fmt.Sprintf("Configured as %s", role),
+    }
+}
+```
+
+### Migration Flow (uses existing bd init)
+
+```
+Existing user runs bd doctor
+   |
+   +-- "⚠ beads.role not configured"
+   +-- "Fix: bd init"
+   |
+   v
+bd init (detects existing .beads/)
+   |
+   +-- No beads.role? → Prompt for role → Set config
+   +-- Has beads.role? → "Already configured. Change? [y/N]"
+   |
+   v
+Future bd commands use explicit config
+```
+
+**No new commands**: `bd init` handles both new and existing users.
+
+**No breaking change**: URL heuristic continues working until user runs `bd init`.
+
+## DetectUserRole Changes
+
+Current detection has a problematic fallback for SSH forks:
+
+```go
+// BEFORE
 func DetectUserRole(repoPath string) (UserRole, error) {
     // 1. Check beads.role config ✅
     // 2. SSH URL → maintainer ❌ (wrong for forks!)
@@ -231,26 +280,25 @@ func DetectUserRole(repoPath string) (UserRole, error) {
 }
 ```
 
-New approach requires explicit configuration:
+New approach: Config first, heuristic fallback with warning (graceful degradation):
 
 ```go
-// AFTER (explicit)
+// AFTER (graceful)
 func DetectUserRole(repoPath string) (UserRole, error) {
-    // Check beads.role config - ONLY source of truth
-    output, err := gitCommandRunner(repoPath, "config", "--get", "beads.role")
-    if err == nil {
-        role := strings.TrimSpace(string(output))
-        if role == string(Maintainer) {
-            return Maintainer, nil
-        }
-        if role == string(Contributor) {
-            return Contributor, nil
-        }
+    // 1. Check beads.role config - preferred source
+    if role := getGitConfig("beads.role"); role != "" {
+        return UserRole(role), nil
     }
 
-    // No config = not configured (forces user through init prompt)
-    return "", ErrRoleNotConfigured
+    // 2. Fallback to URL heuristic (deprecated, with warning)
+    //    This keeps existing users working while encouraging migration
+    fmt.Fprintln(os.Stderr, "⚠ beads.role not configured. Run 'bd migrate role'.")
+    return detectFromURL(repoPath), nil
 }
 ```
 
-This forces users through the init prompt, which sets `beads.role`.
+**Why graceful**:
+- Existing users keep working (no breaking change)
+- Warning encourages migration
+- `bd doctor` shows the issue with fix command
+- `bd migrate role` provides easy migration path

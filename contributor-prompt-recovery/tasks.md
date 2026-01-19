@@ -22,6 +22,8 @@
 | RepoContext.Role() | No config | — | Returns ("", false) | 🔲 |
 | RepoContext.RequireRole() | Config exists | — | Returns nil | 🔲 |
 | RepoContext.RequireRole() | No config | — | Returns ErrRoleNotConfigured | 🔲 |
+| bd doctor | No beads.role | — | Warning + "Fix: bd init" | 🔲 |
+| bd doctor | Has beads.role | — | OK + shows role | 🔲 |
 
 ---
 
@@ -53,11 +55,15 @@
    - `RequireRole()` — returns error if not configured
 
 5. Update `internal/routing/routing.go`
-   - Remove URL heuristic from `DetectUserRole()`
-   - Use `RepoContext.Role()` instead
-   - Update callers to handle unconfigured state
+   - Config check first, URL heuristic fallback with warning
+   - Show deprecation warning when using heuristic
+   - Keep existing users working (graceful degradation)
 
-6. Update `docs/QUICKSTART.md` with prompt behavior
+6. Add `checkBeadsRole()` to `cmd/bd/doctor.go`
+   - Status: warning if not configured
+   - Fix: `bd init` (not a new command)
+
+7. Update `docs/QUICKSTART.md` with prompt behavior
 
 ### Validation
 
