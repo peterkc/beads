@@ -1,8 +1,21 @@
 # Git Notes for Cross-Repo Orphan Detection
 
-**Status**: Exploration
+**Status**: Research Complete → Ready for Spec
 **Related**: [GH#1196](https://github.com/steveyegge/beads/issues/1196), [PR#1200](https://github.com/steveyegge/beads/pull/1200)
 **Started**: 2026-01-19
+**Updated**: 2026-01-19
+
+## Decision Summary
+
+Cross-repo commit-issue tracking is a **solved problem** with multiple approaches. Research recommends:
+
+| Phase | Action | Effort |
+|-------|--------|--------|
+| **1** | Document `--db` workflow + add `--git-path` flag | Low |
+| **2** | Git notes support (`bd notes add/list/push`) | Medium |
+| **3** | Auto-tracking issues, webhook export | Future |
+
+**Key insight**: PR #1200's `IssueProvider` interface already enables cross-repo—just need UX improvements.
 
 ## Problem Statement
 
