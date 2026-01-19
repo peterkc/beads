@@ -54,7 +54,29 @@ d2 --watch diagrams/c4-context.d2 diagrams/generated/c4-context.svg
 - [x] Automation script (`scripts/gen-deps.sh`)
 - [ ] CI integration (future)
 
+## v2.0 Architecture Proposal
+
+Based on first principles analysis and code exploration, we've drafted a comprehensive
+v2.0 architecture proposal. See [beads-v2-architecture.md](beads-v2-architecture.md).
+
+**Key findings from analysis:**
+
+| Issue | Severity | Proposed Solution |
+|-------|----------|-------------------|
+| Storage interface bloat (62 methods) | High | Split into 5 focused interfaces |
+| RPC coupling hotspot (33 imports) | High | Use case based commands |
+| SQLite god package (188 methods) | Medium | Adapter per interface |
+| DRY violations (55 row scans) | Medium | Generic row mapper |
+
+**Next steps:**
+
+- [ ] Create ADR for interface segregation approach
+- [ ] Prototype row mapper with labels.go
+- [ ] Design event bus API
+- [ ] Define plugin API v1
+
 ## Related
 
 - [ARCHITECTURE.md](../../docs/ARCHITECTURE.md) - Text-based architecture docs
 - [INTERNALS.md](../../docs/INTERNALS.md) - Implementation details
+- [beads-v2-architecture.md](beads-v2-architecture.md) - v2.0 redesign proposal
