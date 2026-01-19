@@ -4,7 +4,7 @@
 
 ```yaml
 spec_type: implementation
-status: in_progress
+status: completed
 created: 2026-01-19
 upstream_issue: https://github.com/steveyegge/beads/issues/1196
 tracking_issue: oss-zo5
@@ -24,9 +24,10 @@ phases:
 
   - name: "Phase 3: Closing"
     type: closing
-    status: pending
+    status: completed
     merge_strategy: pr
     description: "PR creation and upstream submission"
+    pr: https://github.com/steveyegge/beads/pull/1200
 
 success_criteria:
   - "SC-001: IssueProvider interface defined with GetOpenIssues() and GetIssuePrefix()"
