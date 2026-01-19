@@ -4,7 +4,7 @@
 
 ```yaml
 spec_type: implementation
-status: draft
+status: in_progress
 created: 2026-01-19
 upstream_issue: https://github.com/steveyegge/beads/issues/1196
 tracking_issue: oss-zo5
@@ -12,8 +12,9 @@ tracking_issue: oss-zo5
 phases:
   - name: "Phase 1: Tracer Bullet + All Callers"
     type: tracer
-    status: pending
+    status: completed
     description: "Define interface, update signature, update ALL callers atomically (build never breaks)"
+    commit: a7375078
 
   - name: "Phase 2: Test Coverage"
     type: mvs
