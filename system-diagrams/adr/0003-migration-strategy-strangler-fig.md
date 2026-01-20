@@ -1082,39 +1082,56 @@ git log --notes --grep="derived-from: abc1234"
 next branch (branched from main)
 ─────────────────────────────────
 internal/
-├── storage/        # v0 (inherited) — plugins wrap this
-├── types/          # v0 (inherited)
-├── core/           # v1 (NEW)
-├── ports/          # v1 (NEW)
-├── adapters/       # v1 (NEW)
-└── plugins/        # v1 (NEW) — imports v0!
+├── v0/                 # All v0 code (reorganized)
+│   ├── storage/        # 75-method interface
+│   ├── types/
+│   ├── linear/
+│   └── ...
+│
+└── next/               # All v1 code (NEW)
+    ├── core/           # Domain layer
+    ├── ports/          # Interfaces
+    ├── adapters/       # Implementations
+    ├── usecases/       # Application logic
+    └── plugins/        # Wraps internal/v0/!
 
 cmd/
-├── bd/             # v0 CLI (inherited)
-└── bdx/            # v1 CLI (NEW)
+├── bd/                 # v0 CLI (imports internal/v0/)
+└── bdx/                # v1 CLI (imports internal/next/)
 ```
+
+**Benefits of `internal/{v0,next}/` structure:**
+- Explicit versioning in import paths
+- Trivial cleanup: `rm -rf internal/v0/`
+- No ambiguity about which code is legacy
+- Clear migration: move imports from `v0/` to `next/`
 
 **Why NOT orphan during development:**
 - Strangler Fig requires v0 and v1 to coexist
 - Plugins must import v0 packages to wrap them
 - Orphan branch has no v0 code to wrap
 
-**See:** `docs/package-coexistence.md` for detailed namespace strategy
+**See:** `docs/package-structure-versioned.md` for detailed structure
 
-### Orphan Branch (Optional, Post-Migration)
+### Why Orphan Is No Longer Needed
 
-After Stage 2.5 (v0 code deleted), orphan is optional for clean history:
+With versioned directories (`internal/v0/` and `internal/next/`), orphan branch is **unnecessary**:
 
-```bash
-# Only AFTER migration complete:
-./scripts/setup-orphan-next.sh
+| Goal | Orphan Approach | Versioned Directories |
+|------|-----------------|----------------------|
+| Clean separation | Separate git history | Separate import paths (`v0/` vs `next/`) |
+| Easy cleanup | Complex (branch swap) | Trivial: `rm -rf internal/v0/` |
+| History preservation | Lost | ✅ Kept (same branch) |
+| Git blame/bisect | Only within orphan | ✅ Works across versions |
+| Strangler Fig | ❌ Breaks (can't import v0) | ✅ Works (plugins import v0/) |
 
-# Creates:
-# - Orphan branch with only v1 code
-# - Git notes for v0 traceability
-```
+**The versioned directory structure solves the same problem more elegantly:**
+- History is clean because v0 code lives under `internal/v0/`
+- Cleanup is trivial: one `rm -rf` command
+- Git blame/bisect works across the entire migration
+- No branch swap complexity at end-game
 
-**Trade-off:** Orphan loses git history but gains clean `git log`.
+**Recommendation:** Do NOT use orphan branch. Versioned directories provide all benefits without the drawbacks.
 
 ---
 
