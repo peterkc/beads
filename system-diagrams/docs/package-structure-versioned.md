@@ -66,19 +66,19 @@ cmd/
 └── bdx/                         # v1 CLI (imports internal/next/)
 ```
 
----
+______________________________________________________________________
 
 ## Benefits
 
-| Benefit | Why |
-|---------|-----|
-| **Explicit versioning** | Import path shows version: `internal/v0/storage` |
-| **Trivial cleanup** | Stage 2.5 = `rm -rf internal/v0/` |
-| **No ambiguity** | Every package clearly belongs to v0 or next |
-| **Parallel development** | v0 and next don't interfere |
-| **Clear migration path** | Move imports from `v0/` to `next/` |
+| Benefit                  | Why                                              |
+| ------------------------ | ------------------------------------------------ |
+| **Explicit versioning**  | Import path shows version: `internal/v0/storage` |
+| **Trivial cleanup**      | Stage 2.5 = `rm -rf internal/v0/`                |
+| **No ambiguity**         | Every package clearly belongs to v0 or next      |
+| **Parallel development** | v0 and next don't interfere                      |
+| **Clear migration path** | Move imports from `v0/` to `next/`               |
 
----
+______________________________________________________________________
 
 ## Import Examples
 
@@ -118,7 +118,7 @@ func (p *Plugin) Create(ctx *plugins.Context, args []string) error {
 }
 ```
 
----
+______________________________________________________________________
 
 ## PluginContext Evolution
 
@@ -171,7 +171,7 @@ func NewContext(db *sql.DB) *Context {
 }
 ```
 
----
+______________________________________________________________________
 
 ## Migration Steps
 
@@ -200,6 +200,7 @@ git commit -m "refactor: move v0 code to internal/v0/"
 ```
 
 **Automated script:**
+
 ```bash
 #!/bin/bash
 # scripts/reorganize-v0.sh
@@ -247,48 +248,48 @@ rm -rf internal/v0/
 git commit -m "chore: remove v0 code after migration complete"
 ```
 
----
+______________________________________________________________________
 
 ## Directory Comparison
 
-| Current (Flat) | Versioned | Clarity |
-|----------------|-----------|---------|
-| `internal/storage/` | `internal/v0/storage/` | ✅ Explicit v0 |
-| `internal/core/` | `internal/next/core/` | ✅ Explicit v1 |
-| Mixed at same level | Separated by version | ✅ No confusion |
-| Manual cleanup | `rm -rf internal/v0/` | ✅ One command |
+| Current (Flat)      | Versioned              | Clarity         |
+| ------------------- | ---------------------- | --------------- |
+| `internal/storage/` | `internal/v0/storage/` | ✅ Explicit v0  |
+| `internal/core/`    | `internal/next/core/`  | ✅ Explicit v1  |
+| Mixed at same level | Separated by version   | ✅ No confusion |
+| Manual cleanup      | `rm -rf internal/v0/`  | ✅ One command  |
 
----
+______________________________________________________________________
 
 ## Naming: `v1` vs `next`
 
-| Name | Pros | Cons |
-|------|------|------|
-| `v1` | Explicit version number | Tied to specific version |
-| `next` | Reusable (v2, v3...) | Less explicit |
+| Name   | Pros                    | Cons                     |
+| ------ | ----------------------- | ------------------------ |
+| `v1`   | Explicit version number | Tied to specific version |
+| `next` | Reusable (v2, v3...)    | Less explicit            |
 
 **Recommendation:** Use `next` — it's the Go community convention (Node.js, React) and reusable.
 
----
+______________________________________________________________________
 
 ## Import Path Length
 
-| Structure | Import Path |
-|-----------|-------------|
-| Flat | `internal/storage` |
-| Versioned | `internal/v0/storage` |
+| Structure    | Import Path                |
+| ------------ | -------------------------- |
+| Flat         | `internal/storage`         |
+| Versioned    | `internal/v0/storage`      |
 | Versioned v1 | `internal/next/core/issue` |
 
 **Trade-off:** Slightly longer paths, but much clearer intent.
 
----
+______________________________________________________________________
 
 ## Summary
 
-| Question | Answer |
-|----------|--------|
-| Where is v0 code? | `internal/v0/` |
-| Where is v1 code? | `internal/next/` |
-| How to migrate? | Move imports from `v0/` to `next/` |
-| How to cleanup? | `rm -rf internal/v0/` |
+| Question               | Answer                                       |
+| ---------------------- | -------------------------------------------- |
+| Where is v0 code?      | `internal/v0/`                               |
+| Where is v1 code?      | `internal/next/`                             |
+| How to migrate?        | Move imports from `v0/` to `next/`           |
+| How to cleanup?        | `rm -rf internal/v0/`                        |
 | What's the first step? | Reorganize existing code into `internal/v0/` |

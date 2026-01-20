@@ -1,13 +1,27 @@
 # System Diagrams Research
 
-Visual architecture documentation for beads using C4 model and D2 diagramming.
+> Visual architecture documentation for beads using C4 model and D2 diagramming.
+
+## Status
+
+**Status**: Active — Migration strategy documented, ready for implementation
+
+## Decision Summary
+
+This research hub documents the beads v1.0 (bdx) architecture redesign:
+
+1. **Migration Strategy**: Strangler Fig with versioned directories (`internal/v0/` + `internal/next/`)
+1. **Architecture**: Hexagonal (ports/adapters) with internal plugin system
+1. **Testing**: Testing-first approach with characterization tests as safety net
+1. **End-Game**: Replace (not merge) with git notes for traceability
 
 ## Goal
 
 Create maintainable architecture diagrams that:
+
 1. Help new contributors understand the codebase
-2. Stay synchronized with code changes
-3. Support refactoring efforts by visualizing dependencies
+1. Stay synchronized with code changes
+1. Support refactoring efforts by visualizing dependencies
 
 ## Structure
 
@@ -27,12 +41,12 @@ system-diagrams/
 
 ## Diagram Levels (C4 Model)
 
-| Level | Diagram | Audience | Update Trigger |
-|-------|---------|----------|----------------|
-| L1 | System Context | Everyone | New integrations |
-| L2 | Container | Developers | Architecture changes |
-| L3 | Components | Core maintainers | Package restructuring |
-| Auto | Package Deps | CI/Review | Every PR (generated) |
+| Level | Diagram        | Audience         | Update Trigger        |
+| ----- | -------------- | ---------------- | --------------------- |
+| L1    | System Context | Everyone         | New integrations      |
+| L2    | Container      | Developers       | Architecture changes  |
+| L3    | Components     | Core maintainers | Package restructuring |
+| Auto  | Package Deps   | CI/Review        | Every PR (generated)  |
 
 ## Quick Start
 
@@ -61,12 +75,12 @@ v1.0 architecture proposal. See [beads-v1-architecture.md](beads-v1-architecture
 
 **Key findings from analysis:**
 
-| Issue | Severity | Proposed Solution |
-|-------|----------|-------------------|
-| Storage interface bloat (62 methods) | High | Split into 5 focused interfaces |
-| RPC coupling hotspot (33 imports) | High | Use case based commands |
-| SQLite god package (188 methods) | Medium | Adapter per interface |
-| DRY violations (55 row scans) | Medium | Generic row mapper |
+| Issue                                | Severity | Proposed Solution               |
+| ------------------------------------ | -------- | ------------------------------- |
+| Storage interface bloat (62 methods) | High     | Split into 5 focused interfaces |
+| RPC coupling hotspot (33 imports)    | High     | Use case based commands         |
+| SQLite god package (188 methods)     | Medium   | Adapter per interface           |
+| DRY violations (55 row scans)        | Medium   | Generic row mapper              |
 
 **Next steps:**
 

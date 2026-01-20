@@ -9,9 +9,9 @@ Accepted
 With parallel development on `main` (bd) and `next` (bdx), we need a strategy to:
 
 1. Backport improvements from `next` → `main` (bdx discoveries benefit bd users)
-2. Track which commits have been backported (avoid duplicates, maintain audit trail)
-3. Preserve commit context across branches (why was this backported?)
-4. Ease eventual merge by reducing branch divergence
+1. Track which commits have been backported (avoid duplicates, maintain audit trail)
+1. Preserve commit context across branches (why was this backported?)
+1. Ease eventual merge by reducing branch divergence
 
 ## Decision
 
@@ -44,6 +44,7 @@ backport-date: <ISO-8601>
 ```
 
 **Example note:**
+
 ```
 backport-from: abc1234 (next)
 backport-reason: Row mapper DRY improvement benefits bd users
@@ -107,13 +108,13 @@ git fetch origin refs/notes/*:refs/notes/*
 
 ## Backport Decision Matrix
 
-| Change Type | Backport? | Reason |
-|-------------|-----------|--------|
-| Bug fixes | ✅ Yes | Users on bd need fixes |
-| DRY refactors | ✅ Yes | Reduces future merge conflicts |
-| Shared interfaces (ports/) | ✅ Yes | Foundation for both |
-| v1-only adapters | ❌ No | bdx specific |
-| Breaking changes | ❌ No | Would break bd |
+| Change Type                | Backport? | Reason                         |
+| -------------------------- | --------- | ------------------------------ |
+| Bug fixes                  | ✅ Yes    | Users on bd need fixes         |
+| DRY refactors              | ✅ Yes    | Reduces future merge conflicts |
+| Shared interfaces (ports/) | ✅ Yes    | Foundation for both            |
+| v1-only adapters           | ❌ No     | bdx specific                   |
+| Breaking changes           | ❌ No     | Would break bd                 |
 
 ## Convergence Effect
 
@@ -144,6 +145,7 @@ internal/
 ```
 
 **Workflow for shared code:**
+
 ```bash
 # Develop on main (benefits bd immediately)
 git checkout main
@@ -180,6 +182,7 @@ git config notes.rewriteMode concatenate
 ```
 
 **Or set globally:**
+
 ```bash
 git config --global notes.rewrite.rebase true
 git config --global notes.rewrite.amend true
@@ -188,12 +191,12 @@ git config --global notes.rewriteRef refs/notes/commits
 
 ### How It Works
 
-| Setting | Value | Effect |
-|---------|-------|--------|
-| `notes.rewrite.rebase` | `true` | Copy notes when rebasing |
-| `notes.rewrite.amend` | `true` | Copy notes when amending |
-| `notes.rewriteRef` | `refs/notes/commits` | Which notes to copy |
-| `notes.rewriteMode` | `concatenate` | Combine if target has notes |
+| Setting                | Value                | Effect                      |
+| ---------------------- | -------------------- | --------------------------- |
+| `notes.rewrite.rebase` | `true`               | Copy notes when rebasing    |
+| `notes.rewrite.amend`  | `true`               | Copy notes when amending    |
+| `notes.rewriteRef`     | `refs/notes/commits` | Which notes to copy         |
+| `notes.rewriteMode`    | `concatenate`        | Combine if target has notes |
 
 **After rebase:** Notes automatically follow commits to their new SHAs!
 
@@ -250,4 +253,4 @@ git push -u origin next
 
 - [Git Notes Documentation](https://git-scm.com/docs/git-notes)
 - [ADR 0003: Migration Strategy](0003-migration-strategy-strangler-fig.md)
-- [research/git-notes-cross-repo/](../git-notes-cross-repo/) — Related exploration
+- [research/git-notes-cross-repo/](../../git-notes-cross-repo/) — Related exploration

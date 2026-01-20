@@ -7,6 +7,7 @@ Accepted (Updated)
 ## Context
 
 Beads v0 is actively used with multiple contributors. We need to migrate to v1 architecture without:
+
 - Breaking existing functionality
 - Requiring "big bang" cutover
 - Blocking active v0 contributors
@@ -14,22 +15,22 @@ Beads v0 is actively used with multiple contributors. We need to migrate to v1 a
 
 **Options considered:**
 
-| Option | Risk | Merge Back | Parallel Dev | v0 Contributors |
-|--------|------|------------|--------------|-----------------|
-| Feature Flags | Medium | Easy | No | Blocked |
-| Parallel Fork (bdx) | Low initially, High later | Hard | Yes | Unaffected |
-| Strangler Fig (in-place) | Low | Easy | Partial | Blocked |
-| Strangler Fig (in fork) | Low | Medium | Yes | Unaffected |
-| Big Bang | HIGH | N/A | No | Blocked |
+| Option                   | Risk                      | Merge Back | Parallel Dev | v0 Contributors |
+| ------------------------ | ------------------------- | ---------- | ------------ | --------------- |
+| Feature Flags            | Medium                    | Easy       | No           | Blocked         |
+| Parallel Fork (bdx)      | Low initially, High later | Hard       | Yes          | Unaffected      |
+| Strangler Fig (in-place) | Low                       | Easy       | Partial      | Blocked         |
+| Strangler Fig (in fork)  | Low                       | Medium     | Yes          | Unaffected      |
+| Big Bang                 | HIGH                      | N/A        | No           | Blocked         |
 
 ## Decision
 
 **Use Strangler Fig pattern in a fork with branch-based phases:**
 
 1. Develop v1 in `peterkc/beads` fork (not upstream)
-2. Create v1 implementations alongside v0 (versioned files)
-3. Regularly sync fork's `main` with `upstream/main`
-4. PR phases back to upstream when stable
+1. Create v1 implementations alongside v0 (versioned files)
+1. Regularly sync fork's `main` with `upstream/main`
+1. PR phases back to upstream when stable
 
 ### Repository Strategy
 
@@ -68,6 +69,7 @@ steveyegge/beads (upstream)
 ```
 
 **Why `next` over `v1`:**
+
 - Version-agnostic (reusable for v2, v3...)
 - Industry standard (Node.js, React use this pattern)
 - Clearer intent: "what's coming next"
@@ -82,6 +84,7 @@ bdx  → v1 (experimental, new architecture)
 ```
 
 **Benefits:**
+
 - Users can test v1 without losing v0
 - Side-by-side comparison on same `.beads/` data
 - Gradual adoption: use `bdx` for new features, `bd` for stable ops
@@ -196,6 +199,7 @@ func main() {
 ```
 
 **Benefits:**
+
 - Single binary distribution (no plugin installation)
 - Clean separation of concerns (each command isolated)
 - Future extensibility (can add external plugins later)
@@ -233,11 +237,11 @@ internal/plugins/
 ### Workflow
 
 1. **Sync regularly**: Automated via GitHub Action (daily) or manual
-2. **Develop phases**: Work in `next/phase-*` branches
-3. **Integrate**: Merge phases into `next` for testing
-4. **Rebase before PR**: Keep phases rebased on latest `main`
-5. **PR to upstream**: When phase is stable, PR to `steveyegge/beads`
-6. **Final PR**: Rename `bdx` → `bd` when v1.0 ships
+1. **Develop phases**: Work in `next/phase-*` branches
+1. **Integrate**: Merge phases into `next` for testing
+1. **Rebase before PR**: Keep phases rebased on latest `main`
+1. **PR to upstream**: When phase is stable, PR to `steveyegge/beads`
+1. **Final PR**: Rename `bdx` → `bd` when v1.0 ships
 
 ### Automated Sync (GitHub Action)
 
@@ -257,10 +261,12 @@ Jobs:
 ```
 
 **On conflict:**
+
 - Workflow creates GitHub issue with `sync-conflict` label
 - Developer resolves manually, closes issue
 
 **Setup:**
+
 ```bash
 # Copy workflow to fork
 cp research/system-diagrams/workflows/sync-upstream.yml .github/workflows/
@@ -271,13 +277,13 @@ git push
 
 ### Why Fork + Strangler Fig (Hybrid)
 
-| Benefit | How |
-|---------|-----|
-| v0 contributors unblocked | They work on upstream, we work on fork |
-| No merge conflicts during dev | Isolated branch until PR time |
-| Incremental PRs still possible | Each phase can be PR'd separately |
-| Rollback easy | Fork can reset; upstream unchanged |
-| Integration testing | `next` validates all phases together |
+| Benefit                        | How                                    |
+| ------------------------------ | -------------------------------------- |
+| v0 contributors unblocked      | They work on upstream, we work on fork |
+| No merge conflicts during dev  | Isolated branch until PR time          |
+| Incremental PRs still possible | Each phase can be PR'd separately      |
+| Rollback easy                  | Fork can reset; upstream unchanged     |
+| Integration testing            | `next` validates all phases together   |
 
 ### Versioned Files Pattern (Within Fork)
 
@@ -317,6 +323,7 @@ contracts first          Wrap v0 in plugins         Replace internals
 ```
 
 **Benefits:**
+
 - **Stage 0 provides safety net** — characterization tests catch regressions
 - v0 never breaks (plugins just wrap existing code)
 - Architecture locked early (plugin interfaces are the contract)
@@ -341,12 +348,13 @@ func (r *IssueRepo) Get(ctx context.Context, id string) (*Issue, error) {
 ```
 
 **Why errors, not panics:**
+
 - Program continues (partial functionality)
 - Clear error messages show what's missing
 - Testable (can assert on ErrNotImplemented)
 - Commands that don't use unimplemented code still work
 
----
+______________________________________________________________________
 
 ## Stage 0: FOUNDATION (Testing-First)
 
@@ -357,6 +365,7 @@ func (r *IssueRepo) Get(ctx context.Context, id string) (*Issue, error) {
 **Duration:** 1-2 days
 
 **New dependencies:**
+
 ```go
 // go.mod additions
 require (
@@ -367,6 +376,7 @@ require (
 ```
 
 **New files:**
+
 ```
 internal/testutil/
 ├── fixtures.go        # Test data generators
@@ -379,7 +389,7 @@ Makefile additions:
 
 **Deliverable:** Testing stack ready, CI workflow passes
 
----
+______________________________________________________________________
 
 ### Phase 0.2: Characterization Tests
 
@@ -388,6 +398,7 @@ Makefile additions:
 **Goal:** Capture v0 behavior as executable specifications (safety net).
 
 **New files:**
+
 ```
 characterization/
 ├── create_test.go         # Create behavior
@@ -399,6 +410,7 @@ characterization/
 ```
 
 **Example:**
+
 ```go
 //go:build characterization
 
@@ -425,7 +437,7 @@ func TestCreate_V0Behavior(t *testing.T) {
 
 **Deliverable:** 100% of v0 behaviors documented as tests
 
----
+______________________________________________________________________
 
 ### Phase 0.3: Core Domain Layer
 
@@ -434,6 +446,7 @@ func TestCreate_V0Behavior(t *testing.T) {
 **Goal:** Pure Go domain with zero external dependencies.
 
 **New files:**
+
 ```
 internal/core/
 ├── issue/
@@ -454,7 +467,7 @@ internal/core/
 
 **Deliverable:** Domain entities with business logic, fully tested
 
----
+______________________________________________________________________
 
 ### Phase 0.4: Ports (Interfaces)
 
@@ -463,6 +476,7 @@ internal/core/
 **Goal:** Define contracts before implementation.
 
 **New files:**
+
 ```
 internal/ports/
 ├── repositories/
@@ -486,7 +500,7 @@ internal/mocks/               # Generated by mockgen
 
 **Deliverable:** All interfaces defined, mocks generated
 
----
+______________________________________________________________________
 
 ### Stage 0 Checkpoint
 
@@ -501,13 +515,14 @@ Before proceeding to Stage 1:
 ```
 
 **Validation gate:**
+
 ```bash
 go test -tags=characterization ./characterization/...  # 100% pass
 go test ./internal/core/...                            # 100% pass
 go generate ./internal/ports/...                       # Mocks generate
 ```
 
----
+______________________________________________________________________
 
 ## Stage 1: PLUGINIZE (v0-plugins)
 
@@ -548,7 +563,7 @@ func NewContext(db *sql.DB) *Context {
 **Risk:** Low (infrastructure only)
 **Deliverable:** Plugin registry compiles
 
----
+______________________________________________________________________
 
 ### Phase 1.2: Wrap Core Commands
 
@@ -588,7 +603,7 @@ func (p *Plugin) Create(ctx *plugins.Context, args []string) error {
 **Risk:** Low (thin wrappers over existing code)
 **Deliverable:** `bd create`, `bd list`, etc. work via plugins
 
----
+______________________________________________________________________
 
 ### Phase 1.3: Wrap Work Commands
 
@@ -606,7 +621,7 @@ internal/plugins/work/
 
 **Risk:** Low
 
----
+______________________________________________________________________
 
 ### Phase 1.4: Wrap Sync Commands
 
@@ -624,7 +639,7 @@ internal/plugins/sync/
 
 **Risk:** Low
 
----
+______________________________________________________________________
 
 ### Phase 1.5: Wrap Integration Plugins
 
@@ -645,7 +660,7 @@ internal/plugins/compact/
 
 **Risk:** Low
 
----
+______________________________________________________________________
 
 ### Phase 1.6: Wire Main Entry Point
 
@@ -689,11 +704,12 @@ func main() {
 **Risk:** Low (same behavior, different structure)
 **Deliverable:** `bd` binary works identically, but uses plugin architecture
 
----
+______________________________________________________________________
 
 ## Stage 1 Checkpoint
 
 At this point:
+
 - `bd` still works exactly as before
 - All commands are plugins (clean separation)
 - Plugin interface is the contract for Stage 2
@@ -710,7 +726,7 @@ At this point:
 ✅ Main entry point rewired
 ```
 
----
+______________________________________________________________________
 
 ## Stage 2: MODERNIZE (v1-plugins)
 
@@ -735,7 +751,7 @@ internal/ports/
 
 **Risk:** Low (interfaces only, no implementation)
 
----
+______________________________________________________________________
 
 ### Phase 2.2: Create v1 Adapters (with stubs)
 
@@ -755,18 +771,18 @@ internal/adapters/sqlite/
 
 **Risk:** Low (all stubs)
 
----
+______________________________________________________________________
 
 ### Phase 2.3: Implement v1 Adapters (Parallel!)
 
 **Goal:** Fill in adapter stubs - can be done in parallel per plugin
 
-| Plugin | Adapter to Implement | Port From |
-|--------|---------------------|-----------|
-| core | `issue_repo.go` | `storage/sqlite/queries.go` |
-| work | `work_repo.go` | `storage/sqlite/ready.go` |
-| work | `dependency_repo.go` | `storage/sqlite/dependencies.go` |
-| sync | `sync_tracker.go` | `storage/sqlite/dirty.go` |
+| Plugin | Adapter to Implement | Port From                        |
+| ------ | -------------------- | -------------------------------- |
+| core   | `issue_repo.go`      | `storage/sqlite/queries.go`      |
+| work   | `work_repo.go`       | `storage/sqlite/ready.go`        |
+| work   | `dependency_repo.go` | `storage/sqlite/dependencies.go` |
+| sync   | `sync_tracker.go`    | `storage/sqlite/dirty.go`        |
 
 **Each plugin can be modernized independently:**
 
@@ -786,7 +802,7 @@ func (p *Plugin) Create(ctx *plugins.Context, args []string) error {
 
 **Risk:** Medium (most complex phase)
 
----
+______________________________________________________________________
 
 ### Phase 2.4: Update PluginContext
 
@@ -816,7 +832,7 @@ type Context struct {
 
 **Risk:** Medium (all plugins must be updated)
 
----
+______________________________________________________________________
 
 ### Phase 2.5: Validate and Cleanup
 
@@ -829,7 +845,7 @@ type Context struct {
 
 **Risk:** Low (testing and cleanup)
 
----
+______________________________________________________________________
 
 ## Upstream Sync Automation
 
@@ -883,27 +899,27 @@ Keeping `next` (v1) in sync with upstream changes requires multi-layer automatio
 
 ### Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/analyze-upstream.sh` | Analyze commits, map to plugins |
+| Script                          | Purpose                          |
+| ------------------------------- | -------------------------------- |
+| `scripts/analyze-upstream.sh`   | Analyze commits, map to plugins  |
 | `scripts/create-port-issues.sh` | Create beads issues for tracking |
-| `scripts/port-status.sh` | Dashboard of port progress |
-| `scripts/test-compatibility.sh` | v0↔v1 data compatibility |
+| `scripts/port-status.sh`        | Dashboard of port progress       |
+| `scripts/test-compatibility.sh` | v0↔v1 data compatibility         |
 
 ### File → Plugin Mapping
 
 The analyze script maps upstream files to v1 plugins:
 
-| Upstream File | Plugin |
-|---------------|--------|
-| `internal/storage/sqlite/queries.go` | core |
-| `internal/storage/sqlite/ready.go` | work |
-| `internal/storage/sqlite/dependencies.go` | work |
-| `internal/export/*`, `internal/importer/*` | sync |
-| `internal/linear/*` | linear |
-| `internal/molecules/*` | molecules |
-| `internal/compact/*` | compact |
-| `internal/storage/storage.go` | shared (all plugins) |
+| Upstream File                              | Plugin               |
+| ------------------------------------------ | -------------------- |
+| `internal/storage/sqlite/queries.go`       | core                 |
+| `internal/storage/sqlite/ready.go`         | work                 |
+| `internal/storage/sqlite/dependencies.go`  | work                 |
+| `internal/export/*`, `internal/importer/*` | sync                 |
+| `internal/linear/*`                        | linear               |
+| `internal/molecules/*`                     | molecules            |
+| `internal/compact/*`                       | compact              |
+| `internal/storage/storage.go`              | shared (all plugins) |
 
 ### Usage
 
@@ -924,11 +940,11 @@ bd close beads-xxx
 
 ### GitHub Actions
 
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `sync-upstream.yml` | Daily 6 AM UTC | Merge upstream → main |
-| `port-upstream.yml` | After sync | Analyze + create issues |
-| `claude-port.yml` | After sync | **AI-assisted porting + stacked PRs** |
+| Workflow            | Trigger        | Purpose                               |
+| ------------------- | -------------- | ------------------------------------- |
+| `sync-upstream.yml` | Daily 6 AM UTC | Merge upstream → main                 |
+| `port-upstream.yml` | After sync     | Analyze + create issues               |
+| `claude-port.yml`   | After sync     | **AI-assisted porting + stacked PRs** |
 
 ### Claude Code + Graphite Automation (Advanced)
 
@@ -992,14 +1008,14 @@ gt merge --all
 
 **Why stacked PRs (Graphite)?**
 
-| Benefit | How |
-|---------|-----|
-| Atomic reviews | Each upstream commit = one PR |
+| Benefit          | How                              |
+| ---------------- | -------------------------------- |
+| Atomic reviews   | Each upstream commit = one PR    |
 | Dependency order | PRs stack in correct merge order |
-| Easy reorder | `gt restack` if needed |
-| Batch merge | `gt merge --all` when approved |
+| Easy reorder     | `gt restack` if needed           |
+| Batch merge      | `gt merge --all` when approved   |
 
----
+______________________________________________________________________
 
 ## End-Game Strategy: Replace (Not Merge)
 
@@ -1007,13 +1023,13 @@ When v1 is ready, the `next` branch **replaces** `main` rather than merging into
 
 ### Why Replace Over Merge?
 
-| Factor | Situation | Favors |
-|--------|-----------|--------|
-| Architecture | Hexagonal (ports/adapters) vs monolithic | Replace |
-| Code reuse | Wrapping v0, then rewriting | Replace |
-| Directory structure | `internal/plugins/` vs flat | Replace |
-| Git history value | v0 patterns being abandoned | Replace |
-| Traceability need | Yes → git notes solve this | Replace |
+| Factor              | Situation                                | Favors  |
+| ------------------- | ---------------------------------------- | ------- |
+| Architecture        | Hexagonal (ports/adapters) vs monolithic | Replace |
+| Code reuse          | Wrapping v0, then rewriting              | Replace |
+| Directory structure | `internal/plugins/` vs flat              | Replace |
+| Git history value   | v0 patterns being abandoned              | Replace |
+| Traceability need   | Yes → git notes solve this               | Replace |
 
 **Key insight:** Merge preserves history in git, but v1 code won't share ancestry with v0 anyway — it's rewritten. Git notes provide traceability without merge complexity.
 
@@ -1055,11 +1071,11 @@ git push origin v1.0.0
 
 ### User Migration Path
 
-| User Scenario | Action |
-|---------------|--------|
-| Staying on v0 | `git checkout v0-archive` (indefinite support TBD) |
-| Migrating to v1 | `git pull` (already on new main) |
-| Fresh clone | Gets v1 automatically |
+| User Scenario   | Action                                             |
+| --------------- | -------------------------------------------------- |
+| Staying on v0   | `git checkout v0-archive` (indefinite support TBD) |
+| Migrating to v1 | `git pull` (already on new main)                   |
+| Fresh clone     | Gets v1 automatically                              |
 
 ### Git Notes Preserve Lineage
 
@@ -1101,12 +1117,14 @@ cmd/
 ```
 
 **Benefits of `internal/{v0,next}/` structure:**
+
 - Explicit versioning in import paths
 - Trivial cleanup: `rm -rf internal/v0/`
 - No ambiguity about which code is legacy
 - Clear migration: move imports from `v0/` to `next/`
 
 **Why NOT orphan during development:**
+
 - Strangler Fig requires v0 and v1 to coexist
 - Plugins must import v0 packages to wrap them
 - Orphan branch has no v0 code to wrap
@@ -1117,15 +1135,16 @@ cmd/
 
 With versioned directories (`internal/v0/` and `internal/next/`), orphan branch is **unnecessary**:
 
-| Goal | Orphan Approach | Versioned Directories |
-|------|-----------------|----------------------|
-| Clean separation | Separate git history | Separate import paths (`v0/` vs `next/`) |
-| Easy cleanup | Complex (branch swap) | Trivial: `rm -rf internal/v0/` |
-| History preservation | Lost | ✅ Kept (same branch) |
-| Git blame/bisect | Only within orphan | ✅ Works across versions |
-| Strangler Fig | ❌ Breaks (can't import v0) | ✅ Works (plugins import v0/) |
+| Goal                 | Orphan Approach             | Versioned Directories                    |
+| -------------------- | --------------------------- | ---------------------------------------- |
+| Clean separation     | Separate git history        | Separate import paths (`v0/` vs `next/`) |
+| Easy cleanup         | Complex (branch swap)       | Trivial: `rm -rf internal/v0/`           |
+| History preservation | Lost                        | ✅ Kept (same branch)                    |
+| Git blame/bisect     | Only within orphan          | ✅ Works across versions                 |
+| Strangler Fig        | ❌ Breaks (can't import v0) | ✅ Works (plugins import v0/)            |
 
 **The versioned directory structure solves the same problem more elegantly:**
+
 - History is clean because v0 code lives under `internal/v0/`
 - Cleanup is trivial: one `rm -rf` command
 - Git blame/bisect works across the entire migration
@@ -1133,7 +1152,7 @@ With versioned directories (`internal/v0/` and `internal/next/`), orphan branch 
 
 **Recommendation:** Do NOT use orphan branch. Versioned directories provide all benefits without the drawbacks.
 
----
+______________________________________________________________________
 
 ## Automation Scripts
 
@@ -1181,67 +1200,67 @@ done
 
 ### File Mapping Table
 
-| bd (v0) | bdx (v1) |
-|---------|----------|
-| `internal/storage/storage.go` | `internal/ports/*.go` |
-| `internal/storage/sqlite/queries.go` | `internal/adapters/sqlite/issue_repo.go` |
+| bd (v0)                                   | bdx (v1)                                      |
+| ----------------------------------------- | --------------------------------------------- |
+| `internal/storage/storage.go`             | `internal/ports/*.go`                         |
+| `internal/storage/sqlite/queries.go`      | `internal/adapters/sqlite/issue_repo.go`      |
 | `internal/storage/sqlite/dependencies.go` | `internal/adapters/sqlite/dependency_repo.go` |
-| `internal/storage/sqlite/ready.go` | `internal/adapters/sqlite/work_repo.go` |
-| `internal/storage/sqlite/config.go` | `internal/adapters/sqlite/config_store.go` |
-| `internal/storage/sqlite/dirty.go` | `internal/adapters/sqlite/sync_tracker.go` |
-| `internal/rpc/server_*.go` | `internal/usecases/*.go` |
-| `internal/linear/` | `plugins/linear/` |
-| `internal/compact/` | `plugins/compact/` |
-| `internal/molecules/` | `plugins/molecules/` |
-| `cmd/bd/` | `cmd/bdx/` |
+| `internal/storage/sqlite/ready.go`        | `internal/adapters/sqlite/work_repo.go`       |
+| `internal/storage/sqlite/config.go`       | `internal/adapters/sqlite/config_store.go`    |
+| `internal/storage/sqlite/dirty.go`        | `internal/adapters/sqlite/sync_tracker.go`    |
+| `internal/rpc/server_*.go`                | `internal/usecases/*.go`                      |
+| `internal/linear/`                        | `plugins/linear/`                             |
+| `internal/compact/`                       | `plugins/compact/`                            |
+| `internal/molecules/`                     | `plugins/molecules/`                          |
+| `cmd/bd/`                                 | `cmd/bdx/`                                    |
 
----
+______________________________________________________________________
 
 ## File Count Summary
 
 ### Stage 0: FOUNDATION
 
-| Phase | New Files | Modified | Risk | Deliverable |
-|-------|-----------|----------|------|-------------|
-| 0.1 Testing Infra | 3 | 2 | Low | testify, gomock, rapid |
-| 0.2 Char Tests | 6 | 0 | Low | v0 behavior captured |
-| 0.3 Core Domain | 10 | 0 | Low | Pure Go entities |
-| 0.4 Ports | 10 | 0 | Low | Interfaces + mocks |
+| Phase             | New Files | Modified | Risk | Deliverable            |
+| ----------------- | --------- | -------- | ---- | ---------------------- |
+| 0.1 Testing Infra | 3         | 2        | Low  | testify, gomock, rapid |
+| 0.2 Char Tests    | 6         | 0        | Low  | v0 behavior captured   |
+| 0.3 Core Domain   | 10        | 0        | Low  | Pure Go entities       |
+| 0.4 Ports         | 10        | 0        | Low  | Interfaces + mocks     |
 
 **Stage 0 Total: ~29 new files, 2 modified (go.mod, Makefile)**
 
 ### Stage 1: PLUGINIZE
 
-| Phase | New Files | Modified | Risk | Deliverable |
-|-------|-----------|----------|------|-------------|
-| 1.1 Plugin Infrastructure | 3 | 0 | Low | Registry compiles |
-| 1.2 core.Plugin | 6 | 0 | Low | create/list/show work |
-| 1.3 work.Plugin | 4 | 0 | Low | ready/dep/blocked work |
-| 1.4 sync.Plugin | 4 | 0 | Low | sync/export/import work |
-| 1.5 Integration Plugins | 3 | 0 | Low | linear/molecules/compact |
-| 1.6 Wire Main | 0 | 1 | Low | bd uses plugins |
+| Phase                     | New Files | Modified | Risk | Deliverable              |
+| ------------------------- | --------- | -------- | ---- | ------------------------ |
+| 1.1 Plugin Infrastructure | 3         | 0        | Low  | Registry compiles        |
+| 1.2 core.Plugin           | 6         | 0        | Low  | create/list/show work    |
+| 1.3 work.Plugin           | 4         | 0        | Low  | ready/dep/blocked work   |
+| 1.4 sync.Plugin           | 4         | 0        | Low  | sync/export/import work  |
+| 1.5 Integration Plugins   | 3         | 0        | Low  | linear/molecules/compact |
+| 1.6 Wire Main             | 0         | 1        | Low  | bd uses plugins          |
 
 **Stage 1 Total: ~20 new files, 1 modified, same behavior**
 
 ### Stage 2: MODERNIZE
 
-| Phase | New Files | Modified | Deleted | Risk |
-|-------|-----------|----------|---------|------|
-| 2.1 Adapters (impl) | 6 | 0 | 0 | Medium |
-| 2.2 Use Cases | 8 | 0 | 0 | Medium |
-| 2.3 Wire to v1 ports | 0 | ~20 | 0 | Medium |
-| 2.4 Validate + compat | 0 | 0 | 0 | Low |
-| 2.5 Cleanup v0 code | 0 | 0 | ~30 | Low |
+| Phase                 | New Files | Modified | Deleted | Risk   |
+| --------------------- | --------- | -------- | ------- | ------ |
+| 2.1 Adapters (impl)   | 6         | 0        | 0       | Medium |
+| 2.2 Use Cases         | 8         | 0        | 0       | Medium |
+| 2.3 Wire to v1 ports  | 0         | ~20      | 0       | Medium |
+| 2.4 Validate + compat | 0         | 0        | 0       | Low    |
+| 2.5 Cleanup v0 code   | 0         | 0        | ~30     | Low    |
 
 **Stage 2 Total: ~14 new files, ~20 modified, ~30 deleted**
 
 ### Timeline Summary
 
-| Stage | Duration | Files | Outcome |
-|-------|----------|-------|---------|
-| **0: Foundation** | 7-12 days | ~29 new | Safety net + contracts |
-| **1: Pluginize** | 5-7 days | ~20 new | v0 wrapped in plugins |
-| **2: Modernize** | 7-10 days | ~14 new, ~30 deleted | v1 architecture |
+| Stage             | Duration  | Files                | Outcome                |
+| ----------------- | --------- | -------------------- | ---------------------- |
+| **0: Foundation** | 7-12 days | ~29 new              | Safety net + contracts |
+| **1: Pluginize**  | 5-7 days  | ~20 new              | v0 wrapped in plugins  |
+| **2: Modernize**  | 7-10 days | ~14 new, ~30 deleted | v1 architecture        |
 
 **Grand Total: ~63 new files, ~23 modified, ~30 deleted, 19-29 days**
 
