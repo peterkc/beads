@@ -55,6 +55,30 @@ steveyegge/beads (upstream)
                      └── v1/phase-8   # Swap/cleanup
 ```
 
+### CLI Coexistence: bd vs bdx
+
+v1 CLI is named `bdx` (beads experimental) to coexist with `bd`:
+
+```
+bd   → v0 (current, stable)
+bdx  → v1 (experimental, new architecture)
+```
+
+**Benefits:**
+- Users can test v1 without losing v0
+- Side-by-side comparison on same `.beads/` data
+- Gradual adoption: use `bdx` for new features, `bd` for stable ops
+- When v1 is stable: `bdx` becomes `bd`, old `bd` becomes `bd-legacy` (or removed)
+
+**Build targets:**
+
+```makefile
+# In fork's Makefile
+build:
+    go build -o bd ./cmd/bd           # v0 CLI
+    go build -o bdx ./cmd/bdx         # v1 CLI (new entry point)
+```
+
 ### Workflow
 
 1. **Sync regularly**: `git fetch upstream && git merge upstream/main` into fork's `main`
@@ -62,6 +86,7 @@ steveyegge/beads (upstream)
 3. **Integrate**: Merge phases into `v1/develop` for testing
 4. **Rebase before PR**: Keep phases rebased on latest `main`
 5. **PR to upstream**: When phase is stable, PR to `steveyegge/beads`
+6. **Final PR**: Rename `bdx` → `bd` when v1.0 ships
 
 ### Why Fork + Strangler Fig (Hybrid)
 
