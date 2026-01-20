@@ -163,6 +163,40 @@ git merge main
 # No backport note needed - it's a merge, not cherry-pick
 ```
 
+## Git Configuration for Note Preservation
+
+Git has **built-in support** for copying notes during rebase/amend. Configure once per clone:
+
+```bash
+# Enable notes copying during rebase and amend
+git config notes.rewrite.rebase true
+git config notes.rewrite.amend true
+
+# Specify which notes ref to copy (required!)
+git config notes.rewriteRef refs/notes/commits
+
+# What to do if target already has notes
+git config notes.rewriteMode concatenate
+```
+
+**Or set globally:**
+```bash
+git config --global notes.rewrite.rebase true
+git config --global notes.rewrite.amend true
+git config --global notes.rewriteRef refs/notes/commits
+```
+
+### How It Works
+
+| Setting | Value | Effect |
+|---------|-------|--------|
+| `notes.rewrite.rebase` | `true` | Copy notes when rebasing |
+| `notes.rewrite.amend` | `true` | Copy notes when amending |
+| `notes.rewriteRef` | `refs/notes/commits` | Which notes to copy |
+| `notes.rewriteMode` | `concatenate` | Combine if target has notes |
+
+**After rebase:** Notes automatically follow commits to their new SHAs!
+
 ## Consequences
 
 ### Positive
@@ -172,33 +206,44 @@ git merge main
 - Prevents duplicate backports
 - Context preserved without polluting commit messages
 - Eases final merge by reducing divergence
+- **Notes survive rebase** (with proper configuration)
 
 ### Negative
 
 - Notes require explicit push/fetch (`refs/notes/*`)
-- Notes don't auto-follow rebases (must re-attach)
+- Requires one-time git config setup
 - Extra step in workflow (mitigated by script)
 
 ### Mitigations
 
 - Automation script handles notes automatically
+- Add git config to fork setup instructions
 - GitHub Action can verify notes are pushed
-- Document rebase note recovery procedure
 
-## Note Recovery After Rebase
+## Fork Setup Checklist
 
-If `next` is rebased, notes referencing old SHAs become orphaned:
+When setting up the fork for v1 development:
 
 ```bash
-# After rebase, find orphaned notes
-git notes list | while read note_sha commit_sha; do
-    if ! git cat-file -e "$commit_sha" 2>/dev/null; then
-        echo "Orphaned note: $note_sha (was on $commit_sha)"
-    fi
-done
+# 1. Clone fork
+git clone git@github.com:peterkc/beads.git
+cd beads
 
-# Manual recovery: find new SHA, re-attach note
-git notes copy <old-sha> <new-sha>
+# 2. Add upstream
+git remote add upstream https://github.com/steveyegge/beads.git
+
+# 3. Configure notes rewriting (critical!)
+git config notes.rewrite.rebase true
+git config notes.rewrite.amend true
+git config notes.rewriteRef refs/notes/commits
+git config notes.rewriteMode concatenate
+
+# 4. Fetch notes
+git fetch origin refs/notes/*:refs/notes/*
+
+# 5. Create next branch
+git checkout -b next
+git push -u origin next
 ```
 
 ## References
