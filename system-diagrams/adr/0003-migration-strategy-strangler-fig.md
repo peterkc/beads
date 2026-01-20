@@ -43,7 +43,7 @@ steveyegge/beads (upstream)
               │
               ├── main              # Tracks upstream/main (stable)
               │
-              └── next              # Integration branch (orphan, v1 development)
+              └── next              # Branched from main (v0 + v1 coexist)
                      │
                      │  STAGE 0: FOUNDATION (Testing-First)
                      ├── next/stage-0.1   # Testing infrastructure
@@ -1074,27 +1074,47 @@ git notes show HEAD
 git log --notes --grep="derived-from: abc1234"
 ```
 
-### Orphan Branch Setup
+### Branch Strategy During Development
 
-The `next` branch should be an orphan (clean history):
+**`next` branches from `main`** (NOT orphan) so plugins can wrap v0:
+
+```
+next branch (branched from main)
+─────────────────────────────────
+internal/
+├── storage/        # v0 (inherited) — plugins wrap this
+├── types/          # v0 (inherited)
+├── core/           # v1 (NEW)
+├── ports/          # v1 (NEW)
+├── adapters/       # v1 (NEW)
+└── plugins/        # v1 (NEW) — imports v0!
+
+cmd/
+├── bd/             # v0 CLI (inherited)
+└── bdx/            # v1 CLI (NEW)
+```
+
+**Why NOT orphan during development:**
+- Strangler Fig requires v0 and v1 to coexist
+- Plugins must import v0 packages to wrap them
+- Orphan branch has no v0 code to wrap
+
+**See:** `docs/package-coexistence.md` for detailed namespace strategy
+
+### Orphan Branch (Optional, Post-Migration)
+
+After Stage 2.5 (v0 code deleted), orphan is optional for clean history:
 
 ```bash
-# Use the setup script
+# Only AFTER migration complete:
 ./scripts/setup-orphan-next.sh
 
 # Creates:
-# - Orphan 'next' branch with no v0 ancestry
-# - v1 directory structure (cmd/bdx, internal/ports, etc.)
-# - Git note linking to main HEAD for traceability
+# - Orphan branch with only v1 code
+# - Git notes for v0 traceability
 ```
 
-**Why orphan:**
-- Clean `git log` for v1 (no v0 noise)
-- Clear "this is new" signal to contributors
-- Simpler history for bisect within v1
-- Notes provide traceability without history pollution
-
-**Trade-off:** `--allow-unrelated-histories` required if ever merging (shouldn't need to).
+**Trade-off:** Orphan loses git history but gains clean `git log`.
 
 ---
 
