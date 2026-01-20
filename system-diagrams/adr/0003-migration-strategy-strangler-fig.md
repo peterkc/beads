@@ -1292,6 +1292,59 @@ ______________________________________________________________________
 - Automated tests verify behavior unchanged
 - Can ship Stage 1 as interim release
 
+### Abort Procedures
+
+Each stage has an explicit rollback path if migration needs to stop:
+
+| Stage             | Abort Complexity | Procedure                                                   |
+| ----------------- | ---------------- | ----------------------------------------------------------- |
+| **0: Foundation** | Trivial          | Delete `internal/next/` directory, remove test dependencies |
+| **1: Pluginize**  | Easy             | Revert `cmd/bdx/main.go`, delete `internal/next/plugins/`   |
+| **2.1-2.3**       | Medium           | Keep `internal/v0/`, revert plugin imports to v0            |
+| **2.4-2.5**       | Hard             | Restore `internal/v0/` from git, revert plugin wiring       |
+| **Post-Ship**     | Complex          | Maintain `v0-archive` branch, document downgrade path       |
+
+**Stage 0 Abort:**
+
+```bash
+# Foundation is additive only - safe to delete
+rm -rf internal/next/
+git checkout go.mod go.sum  # Remove test dependencies
+```
+
+**Stage 1 Abort:**
+
+```bash
+# Plugins wrap v0 - v0 code is unchanged
+git revert <plugin-commits>
+# bd still works, bdx removed
+```
+
+**Stage 2 Abort (before 2.5):**
+
+```bash
+# v0 code still exists in internal/v0/
+# Revert plugin imports from next/ back to v0/
+git revert <stage-2-commits>
+```
+
+**Post-Ship Abort (emergency):**
+
+```bash
+# If v1 has critical bugs after replacing main
+git checkout v0-archive
+git checkout -b hotfix/critical-bug
+# Fix in v0, release as patch
+# Document: "v1.0.1 requires v0 hotfix due to X"
+```
+
+**Decision Point:** Before Stage 2.5 (cleanup), explicitly confirm:
+
+- [ ] All characterization tests pass
+- [ ] Performance benchmarks acceptable
+- [ ] No regressions in user workflows
+- [ ] Stakeholder sign-off on "point of no return"
+
 ## References
 
 - [Strangler Fig Pattern - Martin Fowler](https://martinfowler.com/bliki/StranglerFigApplication.html)
