@@ -1,35 +1,79 @@
-# ADR 0003: Migration Strategy — Strangler Fig with Versioned Files
+# ADR 0003: Migration Strategy — Strangler Fig in Fork
 
 ## Status
 
-Accepted
+Accepted (Updated)
 
 ## Context
 
-Beads v0 is actively used. We need to migrate to v1 architecture without:
+Beads v0 is actively used with multiple contributors. We need to migrate to v1 architecture without:
 - Breaking existing functionality
 - Requiring "big bang" cutover
-- Diverging into unmergeable parallel fork
+- Blocking active v0 contributors
+- Creating unmergeable divergence
 
 **Options considered:**
 
-| Option | Risk | Merge Back | Parallel Dev |
-|--------|------|------------|--------------|
-| Feature Flags | Medium | Easy | No |
-| Parallel Fork (bdx) | Low initially, High later | Hard | Yes |
-| Strangler Fig | Low | Easy | Partial |
-| Big Bang | HIGH | N/A | No |
+| Option | Risk | Merge Back | Parallel Dev | v0 Contributors |
+|--------|------|------------|--------------|-----------------|
+| Feature Flags | Medium | Easy | No | Blocked |
+| Parallel Fork (bdx) | Low initially, High later | Hard | Yes | Unaffected |
+| Strangler Fig (in-place) | Low | Easy | Partial | Blocked |
+| Strangler Fig (in fork) | Low | Medium | Yes | Unaffected |
+| Big Bang | HIGH | N/A | No | Blocked |
 
 ## Decision
 
-**Use Strangler Fig pattern with versioned files:**
+**Use Strangler Fig pattern in a fork with branch-based phases:**
 
-1. Create v1 implementations alongside v0 (not replacing)
-2. New code uses v1 interfaces
-3. Migrate callers incrementally
-4. Swap when ready (delete v0, rename v1)
+1. Develop v1 in `peterkc/beads` fork (not upstream)
+2. Create v1 implementations alongside v0 (versioned files)
+3. Regularly sync fork's `main` with `upstream/main`
+4. PR phases back to upstream when stable
 
-### Why Versioned Files Over Wrappers
+### Repository Strategy
+
+```
+steveyegge/beads (upstream)
+       │
+       ├── Active v0 development by contributors
+       │   (unaffected by v1 work)
+       │
+       └── peterkc/beads (fork)
+              │
+              ├── main              # Tracks upstream/main (v0)
+              │
+              └── v1/develop        # Integration branch
+                     │
+                     ├── v1/phase-1   # Interface segregation
+                     ├── v1/phase-2   # Row mapper DRY
+                     ├── v1/phase-3   # v1 adapters
+                     ├── v1/phase-4   # Event bus
+                     ├── v1/phase-5   # Use cases
+                     ├── v1/phase-6   # Migrate callers
+                     ├── v1/phase-7   # Plugins
+                     └── v1/phase-8   # Swap/cleanup
+```
+
+### Workflow
+
+1. **Sync regularly**: `git fetch upstream && git merge upstream/main` into fork's `main`
+2. **Develop phases**: Work in `v1/phase-*` branches
+3. **Integrate**: Merge phases into `v1/develop` for testing
+4. **Rebase before PR**: Keep phases rebased on latest `main`
+5. **PR to upstream**: When phase is stable, PR to `steveyegge/beads`
+
+### Why Fork + Strangler Fig (Hybrid)
+
+| Benefit | How |
+|---------|-----|
+| v0 contributors unblocked | They work on upstream, we work on fork |
+| No merge conflicts during dev | Isolated branch until PR time |
+| Incremental PRs still possible | Each phase can be PR'd separately |
+| Rollback easy | Fork can reset; upstream unchanged |
+| Integration testing | `v1/develop` validates all phases together |
+
+### Versioned Files Pattern (Within Fork)
 
 ```
 Option A: Wrappers (delegate to v0)          Option B: Versioned Files (swap when ready)
