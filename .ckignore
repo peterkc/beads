@@ -1,0 +1,47 @@
+# Beads .ckignore - Semantic search focus
+#
+# Index: ck --index --model jina-code .
+# Search: ck --sem "query" .
+# Status: ck --status .
+
+# === Directories (noise) ===
+.worktrees/
+.beads/
+.pommel/
+.serena/
+.cache/
+website/
+npm-package/
+
+# === Test artifacts ===
+**/testdata/
+*.prof
+*.out
+
+# === Config/data files (low semantic value) ===
+*.json
+*.yaml
+*.yml
+*.toml
+*.db
+*.sqlite
+
+# === Lock files (explicit patterns for reliability) ===
+*.lock
+go.sum
+package-lock.json
+yarn.lock
+Cargo.lock
+poetry.lock
+
+# === Git config files ===
+.gitignore
+.gitattributes
+.mailmap
+
+# === Generated code ===
+*.pb.go
+*_string.go
+
+# === Test files (uncomment to include - adds ~14MB) ===
+*_test.go
