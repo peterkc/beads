@@ -1,0 +1,178 @@
+# GitHub Action: Analyze and Track Upstream Changes
+# Copy to: .github/workflows/port-upstream.yml in peterkc/beads fork
+#
+# Runs after sync-upstream.yml to:
+# 1. Analyze which plugins are affected by new upstream commits
+# 2. Create tracking issues for porting work
+# 3. Run compatibility tests
+# 4. Post summary to PR/issue
+
+name: Port Upstream
+
+on:
+  # Run after upstream sync
+  workflow_run:
+    workflows: ["Sync Upstream"]
+    types: [completed]
+
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      commit_range:
+        description: 'Commit range to analyze (e.g., abc123..def456)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run (analyze only, no issues created)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    outputs:
+      has_changes: ${{ steps.analyze.outputs.has_changes }}
+      analysis: ${{ steps.analyze.outputs.analysis }}
+      summary: ${{ steps.analyze.outputs.summary }}
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/steveyegge/beads.git || true
+          git fetch upstream
+          git fetch origin
+
+      - name: Analyze upstream commits
+        id: analyze
+        run: |
+          # Determine commit range
+          if [ -n "${{ github.event.inputs.commit_range }}" ]; then
+            RANGE="${{ github.event.inputs.commit_range }}"
+          else
+            RANGE="origin/main..upstream/main"
+          fi
+
+          echo "Analyzing: $RANGE"
+
+          # Run analysis script
+          chmod +x ./scripts/analyze-upstream.sh
+          ANALYSIS=$(./scripts/analyze-upstream.sh "$RANGE" 2>/dev/null || echo "[]")
+
+          # Check if there are changes
+          if [ "$ANALYSIS" == "[]" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No new commits to analyze"
+            exit 0
+          fi
+
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+
+          # Save analysis (escape for GitHub Actions)
+          echo "analysis<<EOF" >> $GITHUB_OUTPUT
+          echo "$ANALYSIS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Generate summary
+          COMMIT_COUNT=$(echo "$ANALYSIS" | jq 'length')
+          HIGH_PRIORITY=$(echo "$ANALYSIS" | jq '[.[] | select(.priority == "high")] | length')
+          PLUGINS=$(echo "$ANALYSIS" | jq -r '[.[].plugins[]] | unique | join(", ")')
+
+          SUMMARY="## Upstream Analysis
+
+          | Metric | Value |
+          |--------|-------|
+          | Commits to port | $COMMIT_COUNT |
+          | High priority | $HIGH_PRIORITY |
+          | Plugins affected | $PLUGINS |
+          "
+
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  create-issues:
+    needs: analyze
+    runs-on: ubuntu-latest
+    if: ${{ needs.analyze.outputs.has_changes == 'true' && github.event.inputs.dry_run != 'true' }}
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build bd
+        run: go build -o bd ./cmd/bd
+
+      - name: Create port issues
+        env:
+          ANALYSIS: ${{ needs.analyze.outputs.analysis }}
+        run: |
+          chmod +x ./scripts/create-port-issues.sh
+          echo "$ANALYSIS" | ./scripts/create-port-issues.sh
+
+      - name: Sync beads
+        run: ./bd sync
+
+  compatibility-test:
+    needs: analyze
+    runs-on: ubuntu-latest
+    if: ${{ needs.analyze.outputs.has_changes == 'true' }}
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          ref: next  # Test on next branch
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build both versions
+        run: |
+          go build -o bd ./cmd/bd
+          go build -o bdx ./cmd/bdx 2>/dev/null || echo "bdx not yet available"
+
+      - name: Run compatibility tests
+        run: |
+          if [ -f ./scripts/test-compatibility.sh ]; then
+            chmod +x ./scripts/test-compatibility.sh
+            ./scripts/test-compatibility.sh
+          else
+            echo "Compatibility tests not yet configured"
+          fi
+
+  summary:
+    needs: [analyze, create-issues, compatibility-test]
+    runs-on: ubuntu-latest
+    if: always() && needs.analyze.outputs.has_changes == 'true'
+
+    steps:
+      - name: Post summary
+        run: |
+          echo "${{ needs.analyze.outputs.summary }}" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Jobs Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Analyze | ${{ needs.analyze.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Create Issues | ${{ needs.create-issues.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compatibility | ${{ needs.compatibility-test.result }} |" >> $GITHUB_STEP_SUMMARY

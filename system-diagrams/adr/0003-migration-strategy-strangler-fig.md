@@ -658,6 +658,106 @@ type Context struct {
 
 ---
 
+## Upstream Sync Automation
+
+Keeping `next` (v1) in sync with upstream changes requires multi-layer automation.
+
+### Sync Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    UPSTREAM SYNC PIPELINE                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  steveyegge/beads ──┐                                           │
+│         (upstream)  │                                           │
+│                     ▼                                           │
+│  ┌──────────────────────────────────┐                          │
+│  │ 1. sync-upstream.yml (daily)     │  Git level               │
+│  │    main ← upstream/main          │                          │
+│  └──────────────────────────────────┘                          │
+│                     │                                           │
+│                     ▼                                           │
+│  ┌──────────────────────────────────┐                          │
+│  │ 2. port-upstream.yml (triggered) │  Analysis                │
+│  │    - analyze-upstream.sh         │                          │
+│  │    - Which plugins affected?     │                          │
+│  └──────────────────────────────────┘                          │
+│                     │                                           │
+│                     ▼                                           │
+│  ┌──────────────────────────────────┐                          │
+│  │ 3. create-port-issues.sh         │  Tracking                │
+│  │    - Beads issue per commit      │                          │
+│  │    - Priority by plugin          │                          │
+│  └──────────────────────────────────┘                          │
+│                     │                                           │
+│                     ▼                                           │
+│  ┌──────────────────────────────────┐                          │
+│  │ 4. Manual: Port to v1 plugin     │  Implementation          │
+│  │    - Update plugin code          │                          │
+│  │    - Add git note                │                          │
+│  │    - Close beads issue           │                          │
+│  └──────────────────────────────────┘                          │
+│                     │                                           │
+│                     ▼                                           │
+│  ┌──────────────────────────────────┐                          │
+│  │ 5. test-compatibility.sh         │  Validation              │
+│  │    - v0 ↔ v1 data compatibility  │                          │
+│  └──────────────────────────────────┘                          │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/analyze-upstream.sh` | Analyze commits, map to plugins |
+| `scripts/create-port-issues.sh` | Create beads issues for tracking |
+| `scripts/port-status.sh` | Dashboard of port progress |
+| `scripts/test-compatibility.sh` | v0↔v1 data compatibility |
+
+### File → Plugin Mapping
+
+The analyze script maps upstream files to v1 plugins:
+
+| Upstream File | Plugin |
+|---------------|--------|
+| `internal/storage/sqlite/queries.go` | core |
+| `internal/storage/sqlite/ready.go` | work |
+| `internal/storage/sqlite/dependencies.go` | work |
+| `internal/export/*`, `internal/importer/*` | sync |
+| `internal/linear/*` | linear |
+| `internal/molecules/*` | molecules |
+| `internal/compact/*` | compact |
+| `internal/storage/storage.go` | shared (all plugins) |
+
+### Usage
+
+```bash
+# Check current port status
+./scripts/port-status.sh
+
+# Analyze new upstream commits
+./scripts/analyze-upstream.sh
+
+# Create issues for untracked commits
+./scripts/analyze-upstream.sh | ./scripts/create-port-issues.sh
+
+# After porting, add git note and close issue
+git notes add -m "ported-from: abc1234 (upstream)"
+bd close beads-xxx
+```
+
+### GitHub Actions
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `sync-upstream.yml` | Daily 6 AM UTC | Merge upstream → main |
+| `port-upstream.yml` | After sync | Analyze + create issues |
+
+---
+
 ## Automation Scripts
 
 ### Progress Tracker
