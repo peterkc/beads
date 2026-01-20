@@ -7,15 +7,22 @@
 
 ## Decision Summary
 
-Cross-repo commit-issue tracking is a **solved problem** with multiple approaches. Research recommends:
+Cross-repo commit-issue tracking is a **solved problem** using existing flags:
 
-| Phase | Action | Effort |
-|-------|--------|--------|
-| **1** | Document `--db` workflow + add `--git-path` flag | Low |
-| **2** | Git notes support (`bd notes add/list/push`) | Medium |
-| **3** | Auto-tracking issues, webhook export | Future |
+| Phase | Action | Effort | Status |
+|-------|--------|--------|--------|
+| **1** | Document `--db` workflow (no new flags) | Low | ✅ Done (PR #1200) |
+| **2** | Git notes for bidirectional linking | Medium | ⏸️ Deferred |
 
-**Key insight**: PR #1200's `IssueProvider` interface already enables cross-repo—just need UX improvements.
+**Key insight**: PR #1200's `--db` flag already enables cross-repo. Run from CODE repo, point to BEADS database.
+
+```bash
+# Cross-repo workflow (works today with PR #1200)
+cd ~/my-code-repo
+bd orphans --db ~/my-beads-repo/.beads
+```
+
+**Why git notes deferred**: After analysis, notes only add value for retroactive tagging (commits missing `(bd-xxx)` references). This is a rare edge case—the `--db` flag solves the primary cross-repo use case. See `specs/git-notes-bidirectional-linking/` for full reasoning.
 
 ## Problem Statement
 
