@@ -1,0 +1,70 @@
+# Architecture Decision Records
+
+This directory contains Architecture Decision Records (ADRs) for bdx (beads v1).
+
+## Index
+
+| ADR | Title | Status | Date |
+|-----|-------|--------|------|
+| — | — | — | — |
+
+## What is an ADR?
+
+An ADR documents a significant architectural decision along with its context and consequences. ADRs are immutable once accepted — superseded decisions get a new ADR that references the old one.
+
+## When to Create an ADR
+
+Create an ADR when:
+
+- Introducing a new interface or port
+- Changing plugin contracts
+- Adding external dependencies
+- Making breaking changes to internal APIs
+- Choosing between multiple valid approaches
+
+## ADR Template
+
+```markdown
+# ADR NNNN: Title
+
+## Status
+
+Proposed | Accepted | Deprecated | Superseded by [ADR-XXXX](XXXX-title.md)
+
+## Context
+
+What is the issue that we're seeing that is motivating this decision?
+
+## Decision
+
+What is the change that we're proposing and/or doing?
+
+## Consequences
+
+What becomes easier or more difficult because of this change?
+
+### Positive
+
+- ...
+
+### Negative
+
+- ...
+
+### Neutral
+
+- ...
+```
+
+## File Naming
+
+`NNNN-kebab-case-title.md`
+
+Examples:
+- `0001-interface-segregation.md`
+- `0002-plugin-architecture.md`
+
+## Related
+
+- [Migration ADRs](../../research/system-diagrams/adr/) — v0→v1 migration decisions (temporary)
+- [ARCHITECTURE.md](../ARCHITECTURE.md) — System overview
