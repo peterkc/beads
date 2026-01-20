@@ -828,6 +828,103 @@ gt merge --all
 
 ---
 
+## End-Game Strategy: Replace (Not Merge)
+
+When v1 is ready, the `next` branch **replaces** `main` rather than merging into it.
+
+### Why Replace Over Merge?
+
+| Factor | Situation | Favors |
+|--------|-----------|--------|
+| Architecture | Hexagonal (ports/adapters) vs monolithic | Replace |
+| Code reuse | Wrapping v0, then rewriting | Replace |
+| Directory structure | `internal/plugins/` vs flat | Replace |
+| Git history value | v0 patterns being abandoned | Replace |
+| Traceability need | Yes → git notes solve this | Replace |
+
+**Key insight:** Merge preserves history in git, but v1 code won't share ancestry with v0 anyway — it's rewritten. Git notes provide traceability without merge complexity.
+
+### Branch Strategy
+
+```
+DURING DEVELOPMENT:                        END-GAME:
+──────────────────                         ─────────
+steveyegge/beads                           steveyegge/beads
+├── main (v0)                              ├── v0-archive (old main)
+│                                          └── main (was next, now v1)
+└── peterkc/beads (fork)
+    ├── main (tracks upstream)
+    ├── next (v1 development, orphan)
+    └── v0/port-* (cherry-picks)
+```
+
+### End-Game Workflow
+
+```bash
+# In upstream (steveyegge/beads) when v1 is ready:
+
+# 1. Archive v0
+git branch v0-archive main
+git push origin v0-archive
+git tag v0-final -m "Final v0 release before v1 migration"
+
+# 2. Replace main with next
+git checkout next
+git branch -M main                  # next becomes main
+git push --force-with-lease origin main
+
+# 3. Tag the transition
+git tag v1.0.0 -m "v1 architecture release"
+git push origin v1.0.0
+
+# 4. Update default branch if needed (GitHub settings)
+```
+
+### User Migration Path
+
+| User Scenario | Action |
+|---------------|--------|
+| Staying on v0 | `git checkout v0-archive` (indefinite support TBD) |
+| Migrating to v1 | `git pull` (already on new main) |
+| Fresh clone | Gets v1 automatically |
+
+### Git Notes Preserve Lineage
+
+Even after replace, notes link v1 code to v0 origins:
+
+```bash
+# Find what v0 commit inspired v1 code
+git notes show HEAD
+# → "derived-from: abc1234 (v0 internal/storage/sqlite/queries.go)"
+
+# Find all v1 commits derived from a specific v0 commit
+git log --notes --grep="derived-from: abc1234"
+```
+
+### Orphan Branch Setup
+
+The `next` branch should be an orphan (clean history):
+
+```bash
+# Use the setup script
+./scripts/setup-orphan-next.sh
+
+# Creates:
+# - Orphan 'next' branch with no v0 ancestry
+# - v1 directory structure (cmd/bdx, internal/ports, etc.)
+# - Git note linking to main HEAD for traceability
+```
+
+**Why orphan:**
+- Clean `git log` for v1 (no v0 noise)
+- Clear "this is new" signal to contributors
+- Simpler history for bisect within v1
+- Notes provide traceability without history pollution
+
+**Trade-off:** `--allow-unrelated-histories` required if ever merging (shouldn't need to).
+
+---
+
 ## Automation Scripts
 
 ### Progress Tracker
