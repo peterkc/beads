@@ -755,6 +755,76 @@ bd close beads-xxx
 |----------|---------|---------|
 | `sync-upstream.yml` | Daily 6 AM UTC | Merge upstream → main |
 | `port-upstream.yml` | After sync | Analyze + create issues |
+| `claude-port.yml` | After sync | **AI-assisted porting + stacked PRs** |
+
+### Claude Code + Graphite Automation (Advanced)
+
+For higher automation, Claude Code can do the actual porting work:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              CLAUDE CODE AUTOMATED PORTING                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  For each upstream commit:                                      │
+│                                                                  │
+│  1. Create worktree                                             │
+│     git worktree add .wt/port-abc123 -b port/abc123 next       │
+│                                                                  │
+│  2. Claude Code analyzes and ports                              │
+│     - Reads upstream diff                                       │
+│     - Maps to v1 plugin(s)                                      │
+│     - Updates plugin code                                       │
+│     - Runs tests                                                │
+│                                                                  │
+│  3. Creates stacked PR via Graphite                             │
+│     gt create -m "port(abc123): Subject"                       │
+│                                                                  │
+│  4. Local review                                                │
+│     ./scripts/review-ports.sh                                   │
+│     - Interactive approve/edit/skip                             │
+│     - gt merge when ready                                       │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Setup requirements:**
+
+```bash
+# 1. GitHub secrets
+ANTHROPIC_API_KEY   # For Claude Code
+GRAPHITE_TOKEN      # For stacked PRs
+
+# 2. Local tools
+npm install -g @withgraphite/graphite-cli
+npm install -g @anthropic-ai/claude-code
+gt auth --token <token>
+```
+
+**Local review workflow:**
+
+```bash
+# List pending port PRs
+./scripts/review-ports.sh --list
+
+# Interactive review (approve/edit/skip each)
+./scripts/review-ports.sh
+
+# View Graphite stack
+gt log
+
+# Merge approved PRs
+gt merge --all
+```
+
+**Why stacked PRs (Graphite)?**
+
+| Benefit | How |
+|---------|-----|
+| Atomic reviews | Each upstream commit = one PR |
+| Dependency order | PRs stack in correct merge order |
+| Easy reorder | `gt restack` if needed |
+| Batch merge | `gt merge --all` when approved |
 
 ---
 

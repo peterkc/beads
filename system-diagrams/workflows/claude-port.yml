@@ -1,0 +1,256 @@
+# GitHub Action: Claude Code Automated Porting
+# Copy to: .github/workflows/claude-port.yml in peterkc/beads fork
+#
+# Uses Claude Code to automatically port upstream changes to v1 plugins,
+# creating stacked PRs via Graphite for review.
+
+name: Claude Port
+
+on:
+  # Triggered after upstream sync
+  workflow_run:
+    workflows: ["Sync Upstream"]
+    types: [completed]
+
+  # Manual trigger for specific commits
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Specific commit to port (leave empty for all new)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run (analyze only, no PR)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+
+    outputs:
+      commits: ${{ steps.analyze.outputs.commits }}
+      has_work: ${{ steps.analyze.outputs.has_work }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup remotes
+        run: |
+          git remote add upstream https://github.com/steveyegge/beads.git || true
+          git fetch upstream
+          git fetch origin
+
+      - name: Analyze upstream commits
+        id: analyze
+        run: |
+          # Get commits to port
+          if [ -n "${{ github.event.inputs.commit_sha }}" ]; then
+            COMMITS="${{ github.event.inputs.commit_sha }}"
+          else
+            COMMITS=$(git rev-list origin/main..upstream/main | head -10)  # Limit to 10
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            echo "has_work=false" >> $GITHUB_OUTPUT
+            echo "No commits to port"
+            exit 0
+          fi
+
+          echo "has_work=true" >> $GITHUB_OUTPUT
+
+          # Output as JSON array
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" | jq -R -s 'split("\n") | map(select(length > 0))' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  port:
+    needs: analyze
+    if: ${{ needs.analyze.outputs.has_work == 'true' && github.event.inputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        commit: ${{ fromJson(needs.analyze.outputs.commits) }}
+      max-parallel: 1  # Sequential to maintain stack order
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: next
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Setup Graphite
+        run: |
+          npm install -g @withgraphite/graphite-cli
+          gt auth --token ${{ secrets.GRAPHITE_TOKEN }}
+
+      - name: Setup Claude Code
+        run: |
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Create worktree for port
+        id: worktree
+        run: |
+          SHORT_SHA=$(echo "${{ matrix.commit }}" | cut -c1-7)
+          BRANCH="port/$SHORT_SHA"
+          WORKTREE=".worktrees/port-$SHORT_SHA"
+
+          # Create worktree from next
+          git worktree add "$WORKTREE" -b "$BRANCH" next
+
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "worktree=$WORKTREE" >> $GITHUB_OUTPUT
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+      - name: Get commit info
+        id: commit_info
+        run: |
+          git fetch upstream
+          SUBJECT=$(git log -1 --format="%s" ${{ matrix.commit }})
+          FILES=$(git show --name-only --format="" ${{ matrix.commit }} | tr '\n' ' ')
+
+          echo "subject=$SUBJECT" >> $GITHUB_OUTPUT
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+
+      - name: Claude Code: Port changes
+        working-directory: ${{ steps.worktree.outputs.worktree }}
+        run: |
+          # Create prompt for Claude Code
+          cat > /tmp/port-prompt.md << 'PROMPT'
+          # Port Upstream Commit
+
+          ## Task
+          Port the following upstream commit to the v1 plugin architecture.
+
+          **Commit:** ${{ matrix.commit }}
+          **Subject:** ${{ steps.commit_info.outputs.subject }}
+          **Files changed:** ${{ steps.commit_info.outputs.files }}
+
+          ## Instructions
+
+          1. First, analyze the upstream commit:
+             ```bash
+             git show ${{ matrix.commit }}
+             ```
+
+          2. Identify which v1 plugin(s) are affected using the mapping:
+             - `internal/storage/sqlite/queries.go` → `internal/plugins/core/`
+             - `internal/storage/sqlite/ready.go` → `internal/plugins/work/`
+             - `internal/storage/sqlite/dependencies.go` → `internal/plugins/work/`
+             - `internal/export/*` → `internal/plugins/sync/`
+             - `internal/linear/*` → `internal/plugins/linear/`
+
+          3. Port the changes to the appropriate v1 plugin files
+
+          4. If the change affects shared code (`internal/storage/storage.go`),
+             update the corresponding port interface in `internal/ports/`
+
+          5. Ensure backward compatibility - v0 data must still work
+
+          6. Run tests to verify:
+             ```bash
+             go test ./internal/plugins/...
+             ```
+
+          7. Stage your changes:
+             ```bash
+             git add -A
+             ```
+
+          ## Output
+          After porting, provide a summary of:
+          - Which files were modified
+          - What the change does in the v1 context
+          - Any concerns or follow-up needed
+          PROMPT
+
+          # Run Claude Code
+          claude-code --prompt-file /tmp/port-prompt.md \
+            --allowedTools "Bash,Read,Write,Edit,Grep,Glob" \
+            --max-turns 20
+
+      - name: Commit changes
+        working-directory: ${{ steps.worktree.outputs.worktree }}
+        run: |
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "port(${{ steps.worktree.outputs.short_sha }}): ${{ steps.commit_info.outputs.subject }}
+
+          Ported from upstream commit ${{ matrix.commit }}.
+
+          Co-authored-by: Claude <claude@anthropic.com>"
+
+          # Add git note for tracking
+          git notes add -m "ported-from: ${{ matrix.commit }} (upstream)"
+
+      - name: Create stacked PR with Graphite
+        working-directory: ${{ steps.worktree.outputs.worktree }}
+        run: |
+          # Push branch
+          git push -u origin ${{ steps.worktree.outputs.branch }}
+
+          # Create PR with Graphite (stacked on previous port PRs)
+          gt create \
+            --title "port(${{ steps.worktree.outputs.short_sha }}): ${{ steps.commit_info.outputs.subject }}" \
+            --body "## Ported Commit
+
+          **Upstream:** \`${{ matrix.commit }}\`
+          **Subject:** ${{ steps.commit_info.outputs.subject }}
+
+          ## Changes
+
+          This PR ports the upstream commit to the v1 plugin architecture.
+
+          ## Review Checklist
+
+          - [ ] Changes correctly mapped to v1 plugins
+          - [ ] Backward compatibility maintained
+          - [ ] Tests pass
+
+          ---
+          *Automatically ported by Claude Code*" \
+            --no-edit
+
+      - name: Cleanup worktree
+        if: always()
+        run: |
+          git worktree remove "${{ steps.worktree.outputs.worktree }}" --force || true
+
+  summary:
+    needs: [analyze, port]
+    runs-on: ubuntu-latest
+    if: always() && needs.analyze.outputs.has_work == 'true'
+
+    steps:
+      - name: Post summary
+        run: |
+          echo "## Claude Port Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Commits processed: $(echo '${{ needs.analyze.outputs.commits }}' | jq 'length')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review stacked PRs locally: \`gt log\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Make any adjustments needed" >> $GITHUB_STEP_SUMMARY
+          echo "3. Merge when ready: \`gt merge\`" >> $GITHUB_STEP_SUMMARY
