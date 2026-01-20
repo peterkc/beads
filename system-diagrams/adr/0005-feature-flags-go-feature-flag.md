@@ -68,6 +68,14 @@ bd config set flags.use_v1 true
 
 ### CLI Flag Overrides
 
+Integrates with existing **Cobra** CLI framework (`github.com/spf13/cobra`):
+
+| Cobra Feature | Usage |
+|---------------|-------|
+| `PersistentFlags()` | `--flag`, `--v1`, `--v0` inherited by all subcommands |
+| `StringArrayVar` | Multiple `--flag` values in single command |
+| `PreRunE` | Build effective flag config before command executes |
+
 Per-command overrides without changing config:
 
 ```bash
@@ -150,6 +158,31 @@ func parseFlag(s string) (string, bool) {
         return parts[0], parts[1] == "true"
     }
     return s, true // --flag name implies true
+}
+```
+
+**Cobra PreRunE integration:**
+
+```go
+// cmd/bd/main.go
+var pluginCtx *plugins.Context
+
+func init() {
+    // Apply flags before any command runs
+    rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+        // Load config from file
+        cfg, err := config.Load()
+        if err != nil {
+            return err
+        }
+
+        // Apply CLI overrides
+        cfg.Flags = *buildFlagConfig(&cfg.Flags)
+
+        // Build plugin context with effective flags
+        pluginCtx, err = plugins.NewContext(cfg)
+        return err
+    }
 }
 ```
 
