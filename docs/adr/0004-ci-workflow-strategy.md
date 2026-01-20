@@ -4,6 +4,10 @@
 
 Accepted
 
+## Date
+
+2026-01-20
+
 ## Context
 
 The beads-next clone inherits v0 GitHub Actions workflows from upstream. During bdx development:

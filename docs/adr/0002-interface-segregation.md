@@ -4,6 +4,10 @@
 
 Proposed
 
+## Date
+
+2026-01-20
+
 ## Context
 
 The current bd v0 architecture tightly couples components:
@@ -39,6 +43,15 @@ internal/
 ├── types/       # Domain types
 └── utils/       # Grab bag
 ```
+
+## Considered Options
+
+| Option | Description | Pros | Cons |
+|--------|-------------|------|------|
+| **A. Status quo** | Keep current structure, improve incrementally | No migration cost | Testing remains difficult, boundaries unclear |
+| **B. Big bang rewrite** | Rewrite from scratch with clean architecture | Clean slate | Risk of regression, long delivery time |
+| **C. Ports & Adapters (Hexagonal)** | Define interfaces at boundaries, wrap existing code | Testable, incremental, reversible | More files, indirection |
+| **D. Layered architecture** | Strict layers (presentation → business → data) | Simple mental model | Less flexible than hexagonal, still couples layers |
 
 ## Decision
 

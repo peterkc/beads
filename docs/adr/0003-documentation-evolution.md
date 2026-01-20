@@ -4,6 +4,10 @@
 
 Proposed
 
+## Date
+
+2026-01-20
+
 ## Context
 
 The `docs/` directory contains extensive v0 documentation (~30 files). As we implement bdx (v1), we need a strategy for evolving documentation.

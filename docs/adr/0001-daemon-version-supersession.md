@@ -4,6 +4,10 @@
 
 Accepted
 
+## Date
+
+2026-01-20
+
 ## Context
 
 During the v0 → v1 migration period, users may have both `bd` (v0) and `bdx` (v1) binaries installed. Both use the same daemon architecture with Unix socket IPC (`bd.sock`). We need to define how daemons from different major versions interact.
