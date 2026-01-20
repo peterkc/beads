@@ -768,8 +768,8 @@ For higher automation, Claude Code can do the actual porting work:
 │                                                                  │
 │  For each upstream commit:                                      │
 │                                                                  │
-│  1. Create worktree                                             │
-│     git worktree add .wt/port-abc123 -b port/abc123 next       │
+│  1. Create branch                                               │
+│     git checkout -b v0/port-abc123 next                        │
 │                                                                  │
 │  2. Claude Code analyzes and ports                              │
 │     - Reads upstream diff                                       │
@@ -778,7 +778,7 @@ For higher automation, Claude Code can do the actual porting work:
 │     - Runs tests                                                │
 │                                                                  │
 │  3. Creates stacked PR via Graphite                             │
-│     gt create -m "port(abc123): Subject"                       │
+│     gt create -m "v0/port-abc123: Subject"                     │
 │                                                                  │
 │  4. Local review                                                │
 │     ./scripts/review-ports.sh                                   │
