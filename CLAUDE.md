@@ -4,7 +4,8 @@ Architecture rewrite using hexagonal (ports/adapters) pattern with plugin-based 
 
 ## Quick Links
 
-- [ADR 0003: Migration Strategy](research/system-diagrams/adr/0003-migration-strategy-strangler-fig.md)
+- [Architecture ADRs](docs/adr/) — bdx design decisions (permanent)
+- [Migration ADRs](research/system-diagrams/adr/) — v0→v1 transition (temporary)
 - [Implementation Plan](research/system-diagrams/docs/implementation-plan.md)
 - [Package Structure](research/system-diagrams/docs/package-structure-versioned.md)
 
@@ -31,7 +32,10 @@ cmd/
 ├── bd/                 # v0 CLI (existing)
 └── bdx/                # v1 CLI (new)
 
-research/               # Architecture docs (orphan branch)
+docs/
+└── adr/                # Architecture decisions (permanent)
+
+research/               # Migration docs (orphan branch, temporary)
 specs/                  # Feature specs (orphan branch)
 .beads-planning/        # bdx issue tracking (orphan branch)
 ```
@@ -42,6 +46,25 @@ specs/                  # Feature specs (orphan branch)
 2. **Characterization tests must pass** before structural changes
 3. **`internal/next/core/` has ZERO external imports** — pure domain logic
 4. **One plugin at a time** — complete and test before moving on
+
+## ADR Discipline
+
+When making architectural changes:
+
+1. **Check existing ADRs** — Is there a relevant decision in `docs/adr/`?
+2. **Create new ADR** if decision is significant:
+   - New interface or port
+   - Changed plugin contract
+   - New external dependency
+   - Breaking change to internal API
+3. **Update ADR status** if superseding a previous decision
+
+**Two ADR locations:**
+
+| Location | Purpose | Lifespan |
+|----------|---------|----------|
+| `docs/adr/` | bdx architecture decisions | Permanent |
+| `research/system-diagrams/adr/` | Migration decisions | Until v1 ships |
 
 ## Workflows
 
