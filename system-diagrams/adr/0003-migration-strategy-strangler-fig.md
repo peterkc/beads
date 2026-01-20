@@ -34,45 +34,57 @@ Beads v0 is actively used with multiple contributors. We need to migrate to v1 a
 
 ### Repository Strategy
 
+**Simplified 2-branch approach:**
+
 ```
-steveyegge/beads (upstream)
-       │
-       ├── Active v0 development by contributors
-       │   (unaffected by next branch work)
-       │
-       └── peterkc/beads (fork)
-              │
-              ├── main              # Tracks upstream/main (stable)
-              │
-              └── next              # Branched from main (v0 + v1 coexist)
-                     │
-                     │  STAGE 0: FOUNDATION (Testing-First)
-                     ├── next/stage-0.1   # Testing infrastructure
-                     ├── next/stage-0.2   # Characterization tests
-                     ├── next/stage-0.3   # Core domain layer
-                     ├── next/stage-0.4   # Ports (interfaces)
-                     │
-                     │  STAGE 1: PLUGINIZE
-                     ├── next/stage-1.1   # Plugin infrastructure
-                     ├── next/stage-1.2   # Core plugin (create/list/show)
-                     ├── next/stage-1.3   # Work plugin (ready/dep)
-                     ├── next/stage-1.4   # Sync plugin
-                     ├── next/stage-1.5   # Integration plugins
-                     ├── next/stage-1.6   # Wire main entry point
-                     │
-                     │  STAGE 2: MODERNIZE
-                     ├── next/stage-2.1   # Adapters (SQLite impl)
-                     ├── next/stage-2.2   # Use cases
-                     ├── next/stage-2.3   # Wire to v1 ports
-                     ├── next/stage-2.4   # Validate + v0 compat
-                     └── next/stage-2.5   # Cleanup v0 code
+steveyegge/beads (upstream)          peterkc/beads (origin)
+        │                                   │
+        │                            ┌──────┴──────┐
+        ▼                            ▼             ▼
+    upstream ◄─── sync ───────► main          fix/v0-*
+    (clean base)              (bdx work)    (v0 contributions)
+        │                          │              │
+        │                          │              │
+        ▼                          │              ▼
+  upstream/main ◄──────────────────┴───── PR ────┘
 ```
 
-**Why `next` over `v1`:**
+| Branch     | Tracks          | Purpose                                  |
+| ---------- | --------------- | ---------------------------------------- |
+| `main`     | `origin/main`   | bdx development (diverged from upstream) |
+| `upstream` | `upstream/main` | Clean sync point with maintainer         |
+| `fix/v0-*` | (from upstream) | v0 contributions to upstream             |
 
-- Version-agnostic (reusable for v2, v3...)
-- Industry standard (Node.js, React use this pattern)
-- Clearer intent: "what's coming next"
+**Parallel development workflow:**
+
+| Work Type         | Branch From     | PR Target          | Notes                                      |
+| ----------------- | --------------- | ------------------ | ------------------------------------------ |
+| bdx development   | `main`          | (stays in fork)    | Contains `internal/v0/` + `internal/next/` |
+| v0 fixes/features | `upstream/main` | `steveyegge/beads` | Clean PRs to maintainer                    |
+
+**v0 contribution workflow:**
+
+```bash
+# Create v0 fix (branches from upstream, not main)
+git fetch upstream
+git checkout -b fix/v0-bug upstream/main
+# work, commit
+git push origin fix/v0-bug
+gh pr create --repo steveyegge/beads
+
+# After merged upstream, sync to main if relevant
+git checkout upstream && git pull upstream main
+git checkout main && git merge upstream
+```
+
+**bdx development workflow:**
+
+```bash
+# Work on bdx (stays in fork's main)
+git checkout main
+# work in internal/next/, commit
+git push origin main
+```
 
 ### CLI Coexistence: bd vs bdx
 
@@ -237,10 +249,10 @@ internal/plugins/
 ### Workflow
 
 1. **Sync regularly**: Automated via GitHub Action (daily) or manual
-1. **Develop phases**: Work in `next/phase-*` branches
-1. **Integrate**: Merge phases into `next` for testing
-1. **Rebase before PR**: Keep phases rebased on latest `main`
-1. **PR to upstream**: When phase is stable, PR to `steveyegge/beads`
+1. **Develop phases**: Work in feature branches off `main`
+1. **Integrate**: Merge features into `main` for testing
+1. **Rebase before PR**: Keep branches rebased on latest upstream
+1. **PR to upstream**: When bdx is stable, PR to `steveyegge/beads`
 1. **Final PR**: Rename `bdx` → `bd` when v1.0 ships
 
 ### Automated Sync (GitHub Action)
@@ -252,11 +264,11 @@ A GitHub Action automates keeping the fork in sync with upstream:
 # See: research/system-diagrams/workflows/sync-upstream.yml
 
 Schedule: Daily at 6 AM UTC
-Manual: workflow_dispatch with rebase_next option
+Manual: workflow_dispatch
 
 Jobs:
-1. sync-main      → Merge upstream/main into fork's main
-2. rebase-next    → Rebase next on updated main
+1. sync-upstream  → Fetch upstream/main updates
+2. merge-main     → Merge upstream changes into fork's main
 3. notify-sync    → Summary + create issue on conflict
 ```
 
@@ -280,10 +292,10 @@ git push
 | Benefit                        | How                                    |
 | ------------------------------ | -------------------------------------- |
 | v0 contributors unblocked      | They work on upstream, we work on fork |
-| No merge conflicts during dev  | Isolated branch until PR time          |
+| No merge conflicts during dev  | Isolated in fork until PR time         |
 | Incremental PRs still possible | Each phase can be PR'd separately      |
 | Rollback easy                  | Fork can reset; upstream unchanged     |
-| Integration testing            | `next` validates all phases together   |
+| Integration testing            | `main` validates all features together |
 
 ### Versioned Files Pattern (Within Fork)
 
@@ -363,7 +375,7 @@ ______________________________________________________________________
 
 ## Upstream Sync Automation
 
-Keeping `next` (v1) in sync with upstream changes requires multi-layer automation.
+Keeping `main` (bdx) in sync with upstream changes requires multi-layer automation.
 
 ### Sync Pipeline
 
@@ -472,7 +484,7 @@ For higher automation, Claude Code can do the actual porting work:
 │  For each upstream commit:                                      │
 │                                                                  │
 │  1. Create branch                                               │
-│     git checkout -b v0/port-abc123 next                        │
+│     git checkout -b v0/port-abc123 main                        │
 │                                                                  │
 │  2. Claude Code analyzes and ports                              │
 │     - Reads upstream diff                                       │
@@ -533,7 +545,7 @@ ______________________________________________________________________
 
 ## End-Game Strategy: Replace (Not Merge)
 
-When v1 is ready, the `next` branch **replaces** `main` rather than merging into it.
+When v1 is ready, the v1 architecture **replaces** v0 rather than merging with it.
 
 ### Why Replace Over Merge?
 
@@ -547,53 +559,45 @@ When v1 is ready, the `next` branch **replaces** `main` rather than merging into
 
 **Key insight:** Merge preserves history in git, but v1 code won't share ancestry with v0 anyway — it's rewritten. Git notes provide traceability without merge complexity.
 
-### Branch Strategy
+### End-Game Strategy
 
-```
-DURING DEVELOPMENT:                        END-GAME:
-──────────────────                         ─────────
-steveyegge/beads                           steveyegge/beads
-├── main (v0)                              ├── v0-archive (old main)
-│                                          └── main (was next, now v1)
-└── peterkc/beads (fork)
-    ├── main (tracks upstream)
-    ├── next (v1 development, orphan)
-    └── v0/port-* (cherry-picks)
-```
+With the simplified 2-branch approach (main = bdx development), end-game is straightforward:
 
-### End-Game Workflow
+**When bdx is ready for upstream:**
 
 ```bash
-# In upstream (steveyegge/beads) when v1 is ready:
+# 1. In fork: Ensure main has clean v1 architecture
+# (internal/v0/ already deleted at Stage 3 completion)
+git checkout main
+git log --oneline -5  # Verify v1 is complete
 
-# 1. Archive v0
-git branch v0-archive main
-git push origin v0-archive
-git tag v0-final -m "Final v0 release before v1 migration"
+# 2. Create PR to upstream
+gh pr create --repo steveyegge/beads \
+  --title "feat: v1 architecture (bdx)" \
+  --body "Major architecture rewrite. See docs/ARCHITECTURE.md"
 
-# 2. Replace main with next
-git checkout next
-git branch -M main                  # next becomes main
-git push --force-with-lease origin main
-
-# 3. Tag the transition
+# 3. After upstream accepts, tag the release
 git tag v1.0.0 -m "v1 architecture release"
 git push origin v1.0.0
-
-# 4. Update default branch if needed (GitHub settings)
 ```
+
+**Why no branch swap needed:**
+
+- `main` IS bdx development (no separate `next` branch)
+- v0 code removed at Stage 3 completion (`rm -rf internal/v0/`)
+- Clean PR to upstream when ready
 
 ### User Migration Path
 
-| User Scenario   | Action                                             |
-| --------------- | -------------------------------------------------- |
-| Staying on v0   | `git checkout v0-archive` (indefinite support TBD) |
-| Migrating to v1 | `git pull` (already on new main)                   |
-| Fresh clone     | Gets v1 automatically                              |
+| User Scenario   | Action                                       |
+| --------------- | -------------------------------------------- |
+| Staying on v0   | Pin to tag before v1 merge                   |
+| Migrating to v1 | `git pull` (after upstream accepts v1 PR)    |
+| Fresh clone     | Gets v1 automatically (after upstream merge) |
 
 ### Git Notes Preserve Lineage
 
-Even after replace, notes link v1 code to v0 origins:
+Even after v0 removal, notes link v1 code to v0 origins:
 
 ```bash
 # Find what v0 commit inspired v1 code
@@ -604,13 +608,11 @@ git notes show HEAD
 git log --notes --grep="derived-from: abc1234"
 ```
 
-### Branch Strategy During Development
+### Directory Structure (Single Branch)
 
-**`next` branches from `main`** (NOT orphan) so plugins can wrap v0:
+Development happens on `main` with versioned directories:
 
 ```
-next branch (branched from main)
-─────────────────────────────────
 internal/
 ├── v0/                 # All v0 code (reorganized)
 │   ├── storage/        # 75-method interface
@@ -636,35 +638,9 @@ cmd/
 - Trivial cleanup: `rm -rf internal/v0/`
 - No ambiguity about which code is legacy
 - Clear migration: move imports from `v0/` to `next/`
-
-**Why NOT orphan during development:**
-
-- Strangler Fig requires v0 and v1 to coexist
-- Plugins must import v0 packages to wrap them
-- Orphan branch has no v0 code to wrap
+- **No branch gymnastics** — single branch, clean history
 
 **See:** `docs/package-structure-versioned.md` for detailed structure
-
-### Why Orphan Is No Longer Needed
-
-With versioned directories (`internal/v0/` and `internal/next/`), orphan branch is **unnecessary**:
-
-| Goal                 | Orphan Approach             | Versioned Directories                    |
-| -------------------- | --------------------------- | ---------------------------------------- |
-| Clean separation     | Separate git history        | Separate import paths (`v0/` vs `next/`) |
-| Easy cleanup         | Complex (branch swap)       | Trivial: `rm -rf internal/v0/`           |
-| History preservation | Lost                        | ✅ Kept (same branch)                    |
-| Git blame/bisect     | Only within orphan          | ✅ Works across versions                 |
-| Strangler Fig        | ❌ Breaks (can't import v0) | ✅ Works (plugins import v0/)            |
-
-**The versioned directory structure solves the same problem more elegantly:**
-
-- History is clean because v0 code lives under `internal/v0/`
-- Cleanup is trivial: one `rm -rf` command
-- Git blame/bisect works across the entire migration
-- No branch swap complexity at end-game
-
-**Recommendation:** Do NOT use orphan branch. Versioned directories provide all benefits without the drawbacks.
 
 ______________________________________________________________________
 
