@@ -1,8 +1,20 @@
 ---
 spec_type: implementation
-status: draft
+status: deferred
 created: 2026-01-19
+deferred_date: 2026-01-19
 research: /Volumes/atlas/beads/research/git-notes-cross-repo/
+
+deferred_reason: |
+  Cross-repo orphan detection is solved by PR #1200's --db flag.
+  Git notes only add value for retroactive tagging (commits missing
+  issue references), which is a rare edge case. The complexity of
+  exposing bd notes commands isn't justified by current use cases.
+
+  Revisit if:
+  - Users frequently forget (bd-xxx) in commit messages
+  - Bidirectional commit→issue queries become a common need
+  - Hook-based auto-capture is requested
 
 success_criteria:
   - "SC-001: bd notes add annotates HEAD with issue reference"
