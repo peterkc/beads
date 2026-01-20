@@ -779,4 +779,5 @@ done
 - [Strangler Fig Pattern - Martin Fowler](https://martinfowler.com/bliki/StranglerFigApplication.html)
 - [Internal Plugin Architecture - kubectl pattern](https://kubernetes.io/docs/tasks/extend-kubectl/kubectl-plugins/)
 - [ADR 0002: Hybrid Architecture Patterns](0002-hybrid-architecture-patterns.md)
+- [ADR 0005: Feature Flags](0005-feature-flags-go-feature-flag.md) — Gradual v0→v1 rollout
 - [beads-v1-architecture.md](../beads-v1-architecture.md)
