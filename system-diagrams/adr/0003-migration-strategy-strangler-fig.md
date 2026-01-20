@@ -43,16 +43,28 @@ steveyegge/beads (upstream)
               │
               ├── main              # Tracks upstream/main (stable)
               │
-              └── next              # Integration branch (upcoming major)
+              └── next              # Integration branch (orphan, v1 development)
                      │
-                     ├── next/phase-1   # Interface segregation
-                     ├── next/phase-2   # Row mapper DRY
-                     ├── next/phase-3   # Adapters
-                     ├── next/phase-4   # Event bus
-                     ├── next/phase-5   # Use cases
-                     ├── next/phase-6   # Migrate callers
-                     ├── next/phase-7   # Plugins
-                     └── next/phase-8   # Swap/cleanup
+                     │  STAGE 0: FOUNDATION (Testing-First)
+                     ├── next/stage-0.1   # Testing infrastructure
+                     ├── next/stage-0.2   # Characterization tests
+                     ├── next/stage-0.3   # Core domain layer
+                     ├── next/stage-0.4   # Ports (interfaces)
+                     │
+                     │  STAGE 1: PLUGINIZE
+                     ├── next/stage-1.1   # Plugin infrastructure
+                     ├── next/stage-1.2   # Core plugin (create/list/show)
+                     ├── next/stage-1.3   # Work plugin (ready/dep)
+                     ├── next/stage-1.4   # Sync plugin
+                     ├── next/stage-1.5   # Integration plugins
+                     ├── next/stage-1.6   # Wire main entry point
+                     │
+                     │  STAGE 2: MODERNIZE
+                     ├── next/stage-2.1   # Adapters (SQLite impl)
+                     ├── next/stage-2.2   # Use cases
+                     ├── next/stage-2.3   # Wire to v1 ports
+                     ├── next/stage-2.4   # Validate + v0 compat
+                     └── next/stage-2.5   # Cleanup v0 code
 ```
 
 **Why `next` over `v1`:**
@@ -283,36 +295,36 @@ Cons: Runtime delegation overhead            Cons: Duplicate code temporarily
 
 **Decision: Option B (Versioned Files)** — Cleaner implementations, atomic swap.
 
-## Migration Phases (Plugin-First)
+## Migration Phases (Testing-First)
 
-### Two-Stage Migration Strategy
+### Three-Stage Migration Strategy
 
-Instead of rewriting from scratch, **wrap v0 code in plugins first**, then refactor internals:
+**Testing-first approach:** Establish safety net before any structural changes.
 
 ```
-STAGE 1: PLUGINIZE                   STAGE 2: MODERNIZE
-──────────────────                   ───────────────────
-v0 monolith                          v0-plugins
-    │                                    │
-    ▼                                    ▼
-┌─────────────┐                     ┌─────────────┐
-│ bd (v0)     │     Wrap in         │ bd (v0)     │     Refactor
-│ ├─ create   │ ──────────────►     │ ├─ core.Plugin    │ ──────────►
-│ ├─ list     │     plugin          │ │   └─ calls v0   │     to v1
-│ ├─ linear   │     interfaces      │ ├─ linear.Plugin  │     ports
-│ └─ ...      │                     │ │   └─ calls v0   │
-└─────────────┘                     │ └─ ...            │
-                                    └─────────────┘
-Same behavior,                       Same behavior,       New architecture,
-monolithic code                      plugin structure     clean internals
+STAGE 0: FOUNDATION      STAGE 1: PLUGINIZE         STAGE 2: MODERNIZE
+───────────────────      ──────────────────         ──────────────────
+
+┌─────────────────┐      ┌─────────────────┐        ┌─────────────────┐
+│ 0.1 Testing     │      │ 1.1 Plugin Infra│        │ 2.1 Adapters    │
+│ 0.2 Char Tests  │  ─►  │ 1.2 Core Plugin │   ─►   │ 2.2 Use Cases   │
+│ 0.3 Core Domain │      │ 1.3 Work Plugin │        │ 2.3 Wire to v1  │
+│ 0.4 Ports       │      │ 1.4 Sync Plugin │        │ 2.4 Validate    │
+└─────────────────┘      │ 1.5 Other Plugs │        │ 2.5 Cleanup     │
+                         │ 1.6 Wire Main   │        └─────────────────┘
+Safety net +             └─────────────────┘
+contracts first          Wrap v0 in plugins         Replace internals
 ```
 
 **Benefits:**
+- **Stage 0 provides safety net** — characterization tests catch regressions
 - v0 never breaks (plugins just wrap existing code)
 - Architecture locked early (plugin interfaces are the contract)
 - Each plugin can be refactored independently
 - Can ship v0-plugins (same behavior) then gradually upgrade
 - Clear progress tracking (which plugins are modernized?)
+
+**See:** `docs/migration-phases-revised.md` for detailed phase breakdown
 
 ### Stub Pattern (Graceful Errors)
 
@@ -333,6 +345,167 @@ func (r *IssueRepo) Get(ctx context.Context, id string) (*Issue, error) {
 - Clear error messages show what's missing
 - Testable (can assert on ErrNotImplemented)
 - Commands that don't use unimplemented code still work
+
+---
+
+## Stage 0: FOUNDATION (Testing-First)
+
+**Goal:** Establish testing infrastructure and contracts BEFORE any structural changes.
+
+### Phase 0.1: Testing Infrastructure
+
+**Duration:** 1-2 days
+
+**New dependencies:**
+```go
+// go.mod additions
+require (
+    github.com/stretchr/testify v1.9.0
+    go.uber.org/mock v0.5.0
+    pgregory.net/rapid v1.2.0
+)
+```
+
+**New files:**
+```
+internal/testutil/
+├── fixtures.go        # Test data generators
+├── assertions.go      # Custom assertions
+└── db.go              # In-memory SQLite helper
+
+Makefile additions:
+    test-unit, test-integration, test-e2e targets
+```
+
+**Deliverable:** Testing stack ready, CI workflow passes
+
+---
+
+### Phase 0.2: Characterization Tests
+
+**Duration:** 3-5 days
+
+**Goal:** Capture v0 behavior as executable specifications (safety net).
+
+**New files:**
+```
+characterization/
+├── create_test.go         # Create behavior
+├── list_test.go           # List/search behavior
+├── update_test.go         # Update behavior
+├── dependency_test.go     # Dependency behavior
+├── sync_test.go           # Sync behavior
+└── helpers_test.go        # Shared setup
+```
+
+**Example:**
+```go
+//go:build characterization
+
+func TestCreate_V0Behavior(t *testing.T) {
+    store := setupV0Store(t)
+
+    tests := []struct {
+        name     string
+        input    types.Issue
+        validate func(*testing.T, *types.Issue)
+    }{
+        {
+            name:  "priority defaults to 2",
+            input: types.Issue{Title: "Test"},
+            validate: func(t *testing.T, got *types.Issue) {
+                assert.Equal(t, 2, got.Priority)
+            },
+        },
+        // ... capture ALL behaviors
+    }
+    // ...
+}
+```
+
+**Deliverable:** 100% of v0 behaviors documented as tests
+
+---
+
+### Phase 0.3: Core Domain Layer
+
+**Duration:** 2-3 days
+
+**Goal:** Pure Go domain with zero external dependencies.
+
+**New files:**
+```
+internal/core/
+├── issue/
+│   ├── issue.go           # Issue entity
+│   ├── status.go          # Status enum
+│   └── priority.go        # Priority enum
+├── dependency/
+│   ├── dependency.go      # Dependency entity
+│   └── graph.go           # Graph algorithms
+├── label/
+│   └── label.go           # Label value object
+└── events/
+    ├── event.go           # Domain events
+    └── types.go           # Event type enum
+```
+
+**Rule:** `internal/core/` has ZERO imports from outside `core/`.
+
+**Deliverable:** Domain entities with business logic, fully tested
+
+---
+
+### Phase 0.4: Ports (Interfaces)
+
+**Duration:** 1-2 days
+
+**Goal:** Define contracts before implementation.
+
+**New files:**
+```
+internal/ports/
+├── repositories/
+│   ├── issue.go           # IssueRepository (5 methods)
+│   ├── dependency.go      # DependencyRepository (4 methods)
+│   ├── label.go           # LabelRepository (3 methods)
+│   ├── comment.go         # CommentRepository (3 methods)
+│   ├── config.go          # ConfigRepository (3 methods)
+│   └── sync.go            # SyncRepository (4 methods)
+├── services/
+│   ├── linear.go          # LinearService
+│   └── git.go             # GitService
+└── events/
+    └── bus.go             # EventBus interface
+
+internal/mocks/               # Generated by mockgen
+├── issue_repo_mock.go
+├── dependency_repo_mock.go
+└── ...
+```
+
+**Deliverable:** All interfaces defined, mocks generated
+
+---
+
+### Stage 0 Checkpoint
+
+Before proceeding to Stage 1:
+
+```
+✅ Testing infrastructure (testify, gomock, rapid)
+✅ Characterization tests (v0 behavior captured)
+✅ Core domain (pure Go, fully tested)
+✅ Port interfaces (contracts defined)
+✅ Generated mocks (ready for use case tests)
+```
+
+**Validation gate:**
+```bash
+go test -tags=characterization ./characterization/...  # 100% pass
+go test ./internal/core/...                            # 100% pass
+go generate ./internal/ports/...                       # Mocks generate
+```
 
 ---
 
@@ -989,6 +1162,17 @@ done
 
 ## File Count Summary
 
+### Stage 0: FOUNDATION
+
+| Phase | New Files | Modified | Risk | Deliverable |
+|-------|-----------|----------|------|-------------|
+| 0.1 Testing Infra | 3 | 2 | Low | testify, gomock, rapid |
+| 0.2 Char Tests | 6 | 0 | Low | v0 behavior captured |
+| 0.3 Core Domain | 10 | 0 | Low | Pure Go entities |
+| 0.4 Ports | 10 | 0 | Low | Interfaces + mocks |
+
+**Stage 0 Total: ~29 new files, 2 modified (go.mod, Makefile)**
+
 ### Stage 1: PLUGINIZE
 
 | Phase | New Files | Modified | Risk | Deliverable |
@@ -1006,33 +1190,44 @@ done
 
 | Phase | New Files | Modified | Deleted | Risk |
 |-------|-----------|----------|---------|------|
-| 2.1 Ports (interfaces) | 7 | 0 | 0 | Low |
-| 2.2 Adapter stubs | 6 | 0 | 0 | Low |
-| 2.3 Implement adapters | 0 | 6 | 0 | Medium |
-| 2.4 Update PluginContext | 0 | ~20 | 0 | Medium |
-| 2.5 Validate & cleanup | 0 | 0 | ~30 | Low |
+| 2.1 Adapters (impl) | 6 | 0 | 0 | Medium |
+| 2.2 Use Cases | 8 | 0 | 0 | Medium |
+| 2.3 Wire to v1 ports | 0 | ~20 | 0 | Medium |
+| 2.4 Validate + compat | 0 | 0 | 0 | Low |
+| 2.5 Cleanup v0 code | 0 | 0 | ~30 | Low |
 
-**Stage 2 Total: ~13 new files, ~26 modified, ~30 deleted**
+**Stage 2 Total: ~14 new files, ~20 modified, ~30 deleted**
 
-**Grand Total: ~33 new files, ~27 modified, ~30 deleted**
+### Timeline Summary
+
+| Stage | Duration | Files | Outcome |
+|-------|----------|-------|---------|
+| **0: Foundation** | 7-12 days | ~29 new | Safety net + contracts |
+| **1: Pluginize** | 5-7 days | ~20 new | v0 wrapped in plugins |
+| **2: Modernize** | 7-10 days | ~14 new, ~30 deleted | v1 architecture |
+
+**Grand Total: ~63 new files, ~23 modified, ~30 deleted, 19-29 days**
 
 ## Consequences
 
 ### Positive
 
+- **Testing-first safety** — Characterization tests catch regressions instantly
 - **Always working software** — Every phase ships working code
-- **Two safe checkpoints** — Stage 1 (plugins) and Stage 2 (v1) are independently valuable
+- **Three safe checkpoints** — Stage 0 (tests), Stage 1 (plugins), Stage 2 (v1)
 - **Parallel development** — Different plugins can be modernized concurrently
 - **Low risk Stage 1** — v0 code unchanged, just wrapped
 - **Incremental PRs** — Each phase is a reviewable PR
 - **Ship early** — Can release v0-plugins (same behavior, better structure)
 - **Future extensibility** — Plugin interface enables external plugins later
+- **Better design** — TDD forces clean interfaces from the start
 
 ### Negative
 
 - Temporary code duplication (plugin wrappers + v0 code)
-- Longer timeline than greenfield rewrite
+- **Longer timeline** than original (~5-10 days for Stage 0)
 - Must maintain wrapper code until Stage 2 complete
+- Characterization tests need ongoing maintenance
 
 ### Mitigations
 
