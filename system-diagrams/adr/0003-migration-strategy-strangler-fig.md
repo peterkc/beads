@@ -37,23 +37,28 @@ Beads v0 is actively used with multiple contributors. We need to migrate to v1 a
 steveyegge/beads (upstream)
        │
        ├── Active v0 development by contributors
-       │   (unaffected by v1 work)
+       │   (unaffected by next branch work)
        │
        └── peterkc/beads (fork)
               │
-              ├── main              # Tracks upstream/main (v0)
+              ├── main              # Tracks upstream/main (stable)
               │
-              └── v1/develop        # Integration branch
+              └── next              # Integration branch (upcoming major)
                      │
-                     ├── v1/phase-1   # Interface segregation
-                     ├── v1/phase-2   # Row mapper DRY
-                     ├── v1/phase-3   # v1 adapters
-                     ├── v1/phase-4   # Event bus
-                     ├── v1/phase-5   # Use cases
-                     ├── v1/phase-6   # Migrate callers
-                     ├── v1/phase-7   # Plugins
-                     └── v1/phase-8   # Swap/cleanup
+                     ├── next/phase-1   # Interface segregation
+                     ├── next/phase-2   # Row mapper DRY
+                     ├── next/phase-3   # Adapters
+                     ├── next/phase-4   # Event bus
+                     ├── next/phase-5   # Use cases
+                     ├── next/phase-6   # Migrate callers
+                     ├── next/phase-7   # Plugins
+                     └── next/phase-8   # Swap/cleanup
 ```
+
+**Why `next` over `v1`:**
+- Version-agnostic (reusable for v2, v3...)
+- Industry standard (Node.js, React use this pattern)
+- Clearer intent: "what's coming next"
 
 ### CLI Coexistence: bd vs bdx
 
@@ -82,8 +87,8 @@ build:
 ### Workflow
 
 1. **Sync regularly**: Automated via GitHub Action (daily) or manual
-2. **Develop phases**: Work in `v1/phase-*` branches
-3. **Integrate**: Merge phases into `v1/develop` for testing
+2. **Develop phases**: Work in `next/phase-*` branches
+3. **Integrate**: Merge phases into `next` for testing
 4. **Rebase before PR**: Keep phases rebased on latest `main`
 5. **PR to upstream**: When phase is stable, PR to `steveyegge/beads`
 6. **Final PR**: Rename `bdx` → `bd` when v1.0 ships
@@ -97,11 +102,11 @@ A GitHub Action automates keeping the fork in sync with upstream:
 # See: research/system-diagrams/workflows/sync-upstream.yml
 
 Schedule: Daily at 6 AM UTC
-Manual: workflow_dispatch with rebase_v1 option
+Manual: workflow_dispatch with rebase_next option
 
 Jobs:
 1. sync-main      → Merge upstream/main into fork's main
-2. rebase-v1      → Rebase v1/develop on updated main
+2. rebase-next    → Rebase next on updated main
 3. notify-sync    → Summary + create issue on conflict
 ```
 
@@ -126,7 +131,7 @@ git push
 | No merge conflicts during dev | Isolated branch until PR time |
 | Incremental PRs still possible | Each phase can be PR'd separately |
 | Rollback easy | Fork can reset; upstream unchanged |
-| Integration testing | `v1/develop` validates all phases together |
+| Integration testing | `next` validates all phases together |
 
 ### Versioned Files Pattern (Within Fork)
 
