@@ -64,13 +64,96 @@ bd config set flags.use_v1_create true
 
 # Enable all v1 features
 bd config set flags.use_v1 true
+```
 
-# Per-command override (no config change)
+### CLI Flag Overrides
+
+Per-command overrides without changing config:
+
+```bash
+# Shorthand: all v1 or all v0
 bd --v1 create "Test issue"
 bd --v0 list
+
+# Granular: specific flag
+bd --flag use_v1_create create "Test issue"
+bd --no-flag use_v1_create create "Test issue"
+
+# Explicit value
+bd --flag use_v1_create=true create "Test issue"
+bd --flag use_v1_create=false create "Test issue"
+
+# Multiple flags
+bd --flag use_v1_create --flag use_v1_list list
+
+# Debug: see effective flags
+bd --dry-run --flag use_v1_create create "Test issue"
+# Would use: use_v1_create=true, use_v1_list=false, ...
+```
+
+**Priority order (lowest to highest):**
+
+```
+1. Config file (.beads/config.yaml)
+2. --v1 / --v0 shorthand
+3. --flag name=value
+4. --no-flag name
 ```
 
 **Implementation:**
+
+```go
+// cmd/bd/main.go
+var (
+    flagOverrides   []string // --flag values
+    noFlagOverrides []string // --no-flag values
+    useV1           bool     // --v1 shorthand
+    useV0           bool     // --v0 shorthand
+)
+
+func init() {
+    rootCmd.PersistentFlags().StringArrayVar(&flagOverrides, "flag", nil,
+        "Enable feature flag (e.g., --flag use_v1_create)")
+    rootCmd.PersistentFlags().StringArrayVar(&noFlagOverrides, "no-flag", nil,
+        "Disable feature flag (e.g., --no-flag use_v1_create)")
+    rootCmd.PersistentFlags().BoolVar(&useV1, "v1", false, "Use all v1 features")
+    rootCmd.PersistentFlags().BoolVar(&useV0, "v0", false, "Use all v0 features")
+}
+
+func buildFlagConfig(base *FlagConfig) *FlagConfig {
+    result := *base // Copy from config file
+
+    // Apply --v1/--v0 first (lowest priority)
+    if useV1 {
+        result.UseV1 = true
+    }
+    if useV0 {
+        result.UseV1 = false
+    }
+
+    // Apply --flag overrides (higher priority)
+    for _, f := range flagOverrides {
+        name, value := parseFlag(f) // "use_v1_create" or "use_v1_create=true"
+        result.Set(name, value)
+    }
+
+    // Apply --no-flag overrides (highest priority)
+    for _, f := range noFlagOverrides {
+        result.Set(f, false)
+    }
+
+    return &result
+}
+
+func parseFlag(s string) (string, bool) {
+    if parts := strings.SplitN(s, "=", 2); len(parts) == 2 {
+        return parts[0], parts[1] == "true"
+    }
+    return s, true // --flag name implies true
+}
+```
+
+### Config Structure
 
 ```go
 // internal/config/config.go
