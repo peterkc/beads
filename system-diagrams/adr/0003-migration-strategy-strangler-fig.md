@@ -84,6 +84,140 @@ build:
     go build -o bdx ./cmd/bdx         # v1 CLI (new entry point)
 ```
 
+### Internal Plugin Architecture (Single Binary)
+
+Every command is a plugin, but all plugins compile into a single binary:
+
+```
+USER SEES:                         INTERNALLY:
+──────────                         ──────────
+$ bdx create ...                   ┌─────────────────────────────┐
+$ bdx list ...                     │  bdx (single binary)        │
+$ bdx linear sync                  │  ┌─────────────────────────┐│
+                                   │  │ Plugin Registry         ││
+                                   │  │  ├─ core.Plugin         ││
+                                   │  │  ├─ work.Plugin         ││
+                                   │  │  ├─ sync.Plugin         ││
+                                   │  │  ├─ linear.Plugin       ││
+                                   │  │  └─ molecules.Plugin    ││
+                                   │  └─────────────────────────┘│
+                                   └─────────────────────────────┘
+```
+
+**Plugin interface:**
+
+```go
+// internal/plugins/plugin.go
+type Plugin interface {
+    Metadata() Metadata
+    Commands() []Command
+}
+
+type Metadata struct {
+    Name        string
+    Version     string
+    Description string
+}
+
+type Command struct {
+    Name    string
+    Aliases []string
+    Short   string
+    Run     func(ctx *Context, args []string) error
+}
+
+// internal/plugins/context.go — DI container
+type Context struct {
+    Issues       ports.IssueRepository
+    Dependencies ports.DependencyRepository
+    Work         ports.WorkRepository
+    Config       ports.ConfigStore
+    Events       ports.EventBus
+}
+```
+
+**Registry and routing:**
+
+```go
+// internal/plugins/registry.go
+type Registry struct {
+    plugins map[string]Plugin
+}
+
+func (r *Registry) Register(p Plugin) {
+    r.plugins[p.Metadata().Name] = p
+}
+
+func (r *Registry) Execute(name string, ctx *Context, args []string) error {
+    for _, p := range r.plugins {
+        for _, cmd := range p.Commands() {
+            if cmd.Name == name || contains(cmd.Aliases, name) {
+                return cmd.Run(ctx, args)
+            }
+        }
+    }
+    return fmt.Errorf("unknown command: %s", name)
+}
+```
+
+**Main entry point:**
+
+```go
+// cmd/bdx/main.go
+func main() {
+    registry := plugins.NewRegistry()
+
+    // All plugins compiled in (single binary)
+    registry.Register(core.Plugin{})
+    registry.Register(work.Plugin{})
+    registry.Register(sync.Plugin{})
+    registry.Register(linear.Plugin{})
+    registry.Register(molecules.Plugin{})
+
+    ctx := wireContext()  // DI setup
+
+    if err := registry.Execute(os.Args[1], ctx, os.Args[2:]); err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+}
+```
+
+**Benefits:**
+- Single binary distribution (no plugin installation)
+- Clean separation of concerns (each command isolated)
+- Future extensibility (can add external plugins later)
+- Testable (mock PluginContext for unit tests)
+
+**Plugin directory structure:**
+
+```
+internal/plugins/
+├── plugin.go              # Plugin interface
+├── context.go             # PluginContext (DI container)
+├── registry.go            # Command routing
+│
+├── core/                  # Core commands plugin
+│   ├── plugin.go          # Registers: create, list, show, update, close
+│   ├── create.go
+│   ├── list.go
+│   └── ...
+│
+├── work/                  # Work management plugin
+│   ├── plugin.go          # Registers: ready, dep
+│   └── ...
+│
+├── sync/                  # Sync plugin
+│   ├── plugin.go          # Registers: sync, export, import
+│   └── ...
+│
+├── linear/                # Linear integration plugin
+│   └── plugin.go
+│
+└── molecules/             # Molecules plugin
+    └── plugin.go
+```
+
 ### Workflow
 
 1. **Sync regularly**: Automated via GitHub Action (daily) or manual
@@ -149,29 +283,40 @@ Cons: Runtime delegation overhead            Cons: Duplicate code temporarily
 
 **Decision: Option B (Versioned Files)** — Cleaner implementations, atomic swap.
 
-## Migration Phases (Scaffold-First)
+## Migration Phases (Plugin-First)
 
-### Scaffold-First Strategy
+### Two-Stage Migration Strategy
 
-Instead of sequential phases, create the **complete v1 structure upfront** with graceful error stubs:
+Instead of rewriting from scratch, **wrap v0 code in plugins first**, then refactor internals:
 
 ```
-SEQUENTIAL (old):                    SCAFFOLD-FIRST (new):
-─────────────────                    ────────────────────
-Phase 1 → Phase 2 → ...              Phase 1: Create ALL stubs
-      (serial)                              ↓
-                                     Phase 2-N: Fill in stubs
-                                          (parallel!)
+STAGE 1: PLUGINIZE                   STAGE 2: MODERNIZE
+──────────────────                   ───────────────────
+v0 monolith                          v0-plugins
+    │                                    │
+    ▼                                    ▼
+┌─────────────┐                     ┌─────────────┐
+│ bd (v0)     │     Wrap in         │ bd (v0)     │     Refactor
+│ ├─ create   │ ──────────────►     │ ├─ core.Plugin    │ ──────────►
+│ ├─ list     │     plugin          │ │   └─ calls v0   │     to v1
+│ ├─ linear   │     interfaces      │ ├─ linear.Plugin  │     ports
+│ └─ ...      │                     │ │   └─ calls v0   │
+└─────────────┘                     │ └─ ...            │
+                                    └─────────────┘
+Same behavior,                       Same behavior,       New architecture,
+monolithic code                      plugin structure     clean internals
 ```
 
 **Benefits:**
-- Architecture locked early (can't drift)
-- Parallel development (anyone can fill any stub)
-- Easy contributor sync (bd commit → map to bdx location)
-- CI validates structure (compiles even with stubs)
-- Clear progress tracking (which stubs are done?)
+- v0 never breaks (plugins just wrap existing code)
+- Architecture locked early (plugin interfaces are the contract)
+- Each plugin can be refactored independently
+- Can ship v0-plugins (same behavior) then gradually upgrade
+- Clear progress tracking (which plugins are modernized?)
 
 ### Stub Pattern (Graceful Errors)
+
+For v1 adapters that aren't implemented yet:
 
 ```go
 // internal/ports/errors.go
@@ -191,172 +336,325 @@ func (r *IssueRepo) Get(ctx context.Context, id string) (*Issue, error) {
 
 ---
 
-### Phase 1: SCAFFOLD
+## Stage 1: PLUGINIZE (v0-plugins)
 
-**Goal:** Create complete v1 directory structure with graceful error stubs
+### Phase 1.1: Plugin Infrastructure
 
-**Directory structure:**
+**Goal:** Create plugin system that wraps existing v0 code
+
+**New files:**
 
 ```
-cmd/bdx/                              # CLI entry point
-├── main.go                           # Minimal, calls root command
-└── commands/                         # Cobra commands (stubs)
-
-internal/
-├── core/                             # Domain (pure Go, no deps)
-│   ├── issue/                        # Issue entity + value objects
-│   ├── dependency/                   # Dependency value object
-│   ├── label/                        # Label value object
-│   └── work/                         # Ready/blocked logic
-│
-├── ports/                            # Interfaces (REAL - define contracts)
-│   ├── errors.go                     # ErrNotImplemented
-│   ├── issue_repository.go           # 5 methods
-│   ├── dependency_repository.go      # 4 methods
-│   ├── work_repository.go            # 3 methods
-│   ├── config_store.go               # 3 methods
-│   ├── sync_tracker.go               # 5 methods
-│   └── event_bus.go                  # 2 methods
-│
-├── adapters/                         # Implementations (stubs initially)
-│   ├── sqlite/
-│   │   ├── issue_repo.go             # Stub → implements ports.IssueRepository
-│   │   ├── dependency_repo.go        # Stub
-│   │   ├── work_repo.go              # Stub
-│   │   ├── config_store.go           # Stub
-│   │   ├── sync_tracker.go           # Stub
-│   │   └── row_mapper.go             # Generic scanner (implement early)
-│   ├── jsonl/
-│   │   ├── exporter.go               # Stub
-│   │   └── importer.go               # Stub
-│   ├── git/
-│   │   └── integration.go            # Stub
-│   └── memory/
-│       └── issue_repo.go             # Stub (for testing)
-│
-├── usecases/                         # Business operations (stubs)
-│   ├── issue_ops.go                  # CreateIssue, UpdateIssue, CloseIssue
-│   ├── work_ops.go                   # GetReadyWork, MarkInProgress
-│   ├── sync_ops.go                   # Export, Import, AutoSync
-│   └── dependency_ops.go             # AddDep, RemoveDep, DetectCycles
-│
-├── events/                           # Event bus (stubs)
-│   ├── bus.go                        # EventBus implementation
-│   └── events.go                     # IssueCreated, IssueUpdated, etc.
-│
-└── plugins/                          # Plugin system (stubs)
-    ├── api.go                        # PluginContext, BeadsPlugin interface
-    └── registry.go                   # Plugin discovery
+internal/plugins/
+├── plugin.go              # Plugin interface
+├── context.go             # PluginContext (wraps v0 Storage for now)
+└── registry.go            # Command routing
 ```
 
-**Risk:** Low (all stubs, compiles but returns errors)
-**Deliverable:** `bdx` binary that compiles, commands return "not implemented"
+**Example v0-wrapper PluginContext:**
+
+```go
+// internal/plugins/context.go
+type Context struct {
+    // Stage 1: wraps v0 Storage directly
+    Storage *storage.Storage  // existing 62-method interface
+
+    // Stage 2: will become individual ports
+    // Issues       ports.IssueRepository
+    // Dependencies ports.DependencyRepository
+    // ...
+}
+
+func NewContext(db *sql.DB) *Context {
+    return &Context{
+        Storage: storage.New(db),  // existing v0 code
+    }
+}
+```
+
+**Risk:** Low (infrastructure only)
+**Deliverable:** Plugin registry compiles
 
 ---
 
-### Phase 2: IMPLEMENT CORE
+### Phase 1.2: Wrap Core Commands
 
-**Goal:** Fill in domain types and ports (shared foundation)
+**Goal:** Wrap create, list, show, update, close in core.Plugin
 
-**Files to implement:**
+**New files:**
 
 ```
-internal/core/issue/issue.go          # Issue entity
-internal/core/issue/status.go         # Status enum + transitions
-internal/core/dependency/dep.go       # Dependency value object
-internal/core/work/ready.go           # Ready/blocked logic
-internal/ports/*.go                   # Already done in scaffold
+internal/plugins/core/
+├── plugin.go              # Registers commands
+├── create.go              # Calls ctx.Storage.CreateIssue()
+├── list.go                # Calls ctx.Storage.ListIssues()
+├── show.go                # Calls ctx.Storage.GetIssue()
+├── update.go              # Calls ctx.Storage.UpdateIssue()
+└── close.go               # Calls ctx.Storage.CloseIssue()
 ```
 
-**Can port from:**
-```
-internal/types/types.go               # bd's current types
+**Example wrapper:**
+
+```go
+// internal/plugins/core/create.go
+func (p *Plugin) Create(ctx *plugins.Context, args []string) error {
+    // Parse args (same as current cmd/bd/create.go)
+    title, description, priority := parseArgs(args)
+
+    // Delegate to existing v0 code
+    issue, err := ctx.Storage.CreateIssue(title, description, priority)
+    if err != nil {
+        return err
+    }
+
+    fmt.Printf("Created: %s\n", issue.ID)
+    return nil
+}
 ```
 
-**Risk:** Low (pure Go, no I/O)
+**Risk:** Low (thin wrappers over existing code)
+**Deliverable:** `bd create`, `bd list`, etc. work via plugins
 
 ---
 
-### Phase 3: IMPLEMENT ADAPTERS (Parallel!)
+### Phase 1.3: Wrap Work Commands
 
-**Goal:** Fill in adapter stubs - can be done in parallel
+**Goal:** Wrap ready, dep, blocked in work.Plugin
 
-| Adapter | Priority | Port From |
-|---------|----------|-----------|
-| `sqlite/row_mapper.go` | High | New (DRY helper) |
-| `sqlite/issue_repo.go` | High | `storage/sqlite/queries.go` |
-| `sqlite/dependency_repo.go` | High | `storage/sqlite/dependencies.go` |
-| `sqlite/work_repo.go` | Medium | `storage/sqlite/ready.go` |
-| `sqlite/config_store.go` | Medium | `storage/sqlite/config.go` |
-| `sqlite/sync_tracker.go` | Medium | `storage/sqlite/dirty.go` |
-| `memory/issue_repo.go` | Low | New (for testing) |
-| `jsonl/exporter.go` | Medium | `export/export.go` |
-| `jsonl/importer.go` | Medium | `importer/importer.go` |
+**New files:**
+
+```
+internal/plugins/work/
+├── plugin.go              # Registers: ready, dep, blocked
+├── ready.go               # Calls ctx.Storage.GetReadyIssues()
+├── dep.go                 # Calls ctx.Storage.AddDependency()
+└── blocked.go             # Calls ctx.Storage.GetBlockedIssues()
+```
+
+**Risk:** Low
+
+---
+
+### Phase 1.4: Wrap Sync Commands
+
+**Goal:** Wrap sync, export, import in sync.Plugin
+
+**New files:**
+
+```
+internal/plugins/sync/
+├── plugin.go              # Registers: sync, export, import
+├── sync.go                # Calls existing sync logic
+├── export.go              # Calls ctx.Storage.Export()
+└── import.go              # Calls existing importer
+```
+
+**Risk:** Low
+
+---
+
+### Phase 1.5: Wrap Integration Plugins
+
+**Goal:** Wrap linear, molecules, compact in their own plugins
+
+**New files:**
+
+```
+internal/plugins/linear/
+└── plugin.go              # Calls internal/linear/*
+
+internal/plugins/molecules/
+└── plugin.go              # Calls internal/molecules/*
+
+internal/plugins/compact/
+└── plugin.go              # Calls internal/compact/*
+```
+
+**Risk:** Low
+
+---
+
+### Phase 1.6: Wire Main Entry Point
+
+**Goal:** Replace cmd/bd/main.go with plugin-based routing
+
+**Before (v0):**
+
+```go
+// cmd/bd/main.go
+func main() {
+    rootCmd := &cobra.Command{Use: "bd"}
+    rootCmd.AddCommand(createCmd, listCmd, ...)
+    rootCmd.Execute()
+}
+```
+
+**After (v0-plugins):**
+
+```go
+// cmd/bd/main.go
+func main() {
+    registry := plugins.NewRegistry()
+
+    // All plugins wrap existing v0 code
+    registry.Register(core.Plugin{})
+    registry.Register(work.Plugin{})
+    registry.Register(sync.Plugin{})
+    registry.Register(linear.Plugin{})
+    registry.Register(molecules.Plugin{})
+    registry.Register(compact.Plugin{})
+
+    ctx := plugins.NewContext(openDB())
+
+    if err := registry.Execute(os.Args[1], ctx, os.Args[2:]); err != nil {
+        fmt.Fprintln(os.Stderr, err)
+        os.Exit(1)
+    }
+}
+```
+
+**Risk:** Low (same behavior, different structure)
+**Deliverable:** `bd` binary works identically, but uses plugin architecture
+
+---
+
+## Stage 1 Checkpoint
+
+At this point:
+- `bd` still works exactly as before
+- All commands are plugins (clean separation)
+- Plugin interface is the contract for Stage 2
+- Can ship this as a release (no behavior change)
+
+```
+✅ Plugin infrastructure
+✅ core.Plugin (create, list, show, update, close)
+✅ work.Plugin (ready, dep, blocked)
+✅ sync.Plugin (sync, export, import)
+✅ linear.Plugin
+✅ molecules.Plugin
+✅ compact.Plugin
+✅ Main entry point rewired
+```
+
+---
+
+## Stage 2: MODERNIZE (v1-plugins)
+
+Now refactor each plugin's internals to use v1 architecture (ports/adapters).
+
+### Phase 2.1: Create Ports (Interfaces)
+
+**Goal:** Define v1 interfaces in `internal/ports/`
+
+**New files:**
+
+```
+internal/ports/
+├── errors.go                     # ErrNotImplemented
+├── issue_repository.go           # 5 methods
+├── dependency_repository.go      # 4 methods
+├── work_repository.go            # 3 methods
+├── config_store.go               # 3 methods
+├── sync_tracker.go               # 5 methods
+└── event_bus.go                  # 2 methods
+```
+
+**Risk:** Low (interfaces only, no implementation)
+
+---
+
+### Phase 2.2: Create v1 Adapters (with stubs)
+
+**Goal:** Create adapter stubs that return ErrNotImplemented
+
+**New files:**
+
+```
+internal/adapters/sqlite/
+├── issue_repo.go             # Stub
+├── dependency_repo.go        # Stub
+├── work_repo.go              # Stub
+├── config_store.go           # Stub
+├── sync_tracker.go           # Stub
+└── row_mapper.go             # Implement early (DRY helper)
+```
+
+**Risk:** Low (all stubs)
+
+---
+
+### Phase 2.3: Implement v1 Adapters (Parallel!)
+
+**Goal:** Fill in adapter stubs - can be done in parallel per plugin
+
+| Plugin | Adapter to Implement | Port From |
+|--------|---------------------|-----------|
+| core | `issue_repo.go` | `storage/sqlite/queries.go` |
+| work | `work_repo.go` | `storage/sqlite/ready.go` |
+| work | `dependency_repo.go` | `storage/sqlite/dependencies.go` |
+| sync | `sync_tracker.go` | `storage/sqlite/dirty.go` |
+
+**Each plugin can be modernized independently:**
+
+```go
+// internal/plugins/core/create.go
+
+// Before (v0-plugin, Stage 1):
+func (p *Plugin) Create(ctx *plugins.Context, args []string) error {
+    return ctx.Storage.CreateIssue(...)  // v0 code
+}
+
+// After (v1-plugin, Stage 2):
+func (p *Plugin) Create(ctx *plugins.Context, args []string) error {
+    return ctx.Issues.Create(...)  // v1 port
+}
+```
 
 **Risk:** Medium (most complex phase)
 
 ---
 
-### Phase 4: IMPLEMENT USE CASES
+### Phase 2.4: Update PluginContext
 
-**Goal:** Fill in business operation stubs
+**Goal:** PluginContext switches from v0 Storage to v1 ports
 
-| Use Case | Port From |
-|----------|-----------|
-| `issue_ops.go` | `rpc/server_issues_epics.go` |
-| `work_ops.go` | `rpc/server_core.go` |
-| `sync_ops.go` | `rpc/server_export_import_auto.go` |
-| `dependency_ops.go` | `rpc/server_labels_deps_comments.go` |
+**Before (Stage 1):**
 
-**Risk:** Medium
+```go
+type Context struct {
+    Storage *storage.Storage  // v0: 62 methods
+}
+```
+
+**After (Stage 2):**
+
+```go
+type Context struct {
+    // v1 ports (segregated interfaces)
+    Issues       ports.IssueRepository
+    Dependencies ports.DependencyRepository
+    Work         ports.WorkRepository
+    Config       ports.ConfigStore
+    Sync         ports.SyncTracker
+    Events       ports.EventBus
+}
+```
+
+**Risk:** Medium (all plugins must be updated)
 
 ---
 
-### Phase 5: WIRE CLI
+### Phase 2.5: Validate and Cleanup
 
-**Goal:** Connect bdx commands to use cases
-
-```
-cmd/bdx/commands/
-├── create.go      # bd create → usecases.CreateIssue
-├── list.go        # bd list → usecases.ListIssues
-├── show.go        # bd show → usecases.GetIssue
-├── update.go      # bd update → usecases.UpdateIssue
-├── close.go       # bd close → usecases.CloseIssue
-├── ready.go       # bd ready → usecases.GetReadyWork
-├── dep.go         # bd dep → usecases.DependencyOps
-└── sync.go        # bd sync → usecases.SyncOps
-```
-
-**Risk:** Low (thin wrappers)
-
----
-
-### Phase 6: PORT FEATURES
-
-**Goal:** Migrate Linear, compact, molecules as plugins
-
-```
-plugins/
-├── linear/        # Port from internal/linear/
-├── compact/       # Port from internal/compact/
-└── molecules/     # Port from internal/molecules/
-```
-
-**Risk:** Medium (plugin API must be stable)
-
----
-
-### Phase 7: VALIDATE
-
-**Goal:** Integration testing, .beads/ compatibility
+**Goal:** Integration testing, remove v0 code
 
 - Run bdx against existing .beads/ databases
 - Compare output with bd (should match)
 - Performance benchmarks
-- Edge case testing
+- Delete `internal/storage/` (v0 code)
 
-**Risk:** Low (testing, not implementation)
+**Risk:** Low (testing and cleanup)
 
 ---
 
@@ -424,41 +722,61 @@ done
 
 ## File Count Summary
 
-| Phase | New Files | Stubs | Implemented | Risk |
-|-------|-----------|-------|-------------|------|
-| 1. Scaffold | ~35 | 35 | 0 | Low |
-| 2. Core | 0 | -5 | 5 | Low |
-| 3. Adapters | 0 | -10 | 10 | Medium |
-| 4. Use Cases | 0 | -4 | 4 | Medium |
-| 5. Wire CLI | ~10 | 0 | 10 | Low |
-| 6. Plugins | ~6 | 0 | 6 | Medium |
-| 7. Validate | 0 | 0 | 0 | Low |
+### Stage 1: PLUGINIZE
 
-**Total: ~51 new files, all stubs filled by end**
+| Phase | New Files | Modified | Risk | Deliverable |
+|-------|-----------|----------|------|-------------|
+| 1.1 Plugin Infrastructure | 3 | 0 | Low | Registry compiles |
+| 1.2 core.Plugin | 6 | 0 | Low | create/list/show work |
+| 1.3 work.Plugin | 4 | 0 | Low | ready/dep/blocked work |
+| 1.4 sync.Plugin | 4 | 0 | Low | sync/export/import work |
+| 1.5 Integration Plugins | 3 | 0 | Low | linear/molecules/compact |
+| 1.6 Wire Main | 0 | 1 | Low | bd uses plugins |
+
+**Stage 1 Total: ~20 new files, 1 modified, same behavior**
+
+### Stage 2: MODERNIZE
+
+| Phase | New Files | Modified | Deleted | Risk |
+|-------|-----------|----------|---------|------|
+| 2.1 Ports (interfaces) | 7 | 0 | 0 | Low |
+| 2.2 Adapter stubs | 6 | 0 | 0 | Low |
+| 2.3 Implement adapters | 0 | 6 | 0 | Medium |
+| 2.4 Update PluginContext | 0 | ~20 | 0 | Medium |
+| 2.5 Validate & cleanup | 0 | 0 | ~30 | Low |
+
+**Stage 2 Total: ~13 new files, ~26 modified, ~30 deleted**
+
+**Grand Total: ~33 new files, ~27 modified, ~30 deleted**
 
 ## Consequences
 
 ### Positive
 
-- Always working software at every phase
-- Each phase is reviewable PR
-- Can pause at any phase if priorities shift
-- Atomic swap at end (no gradual breakage)
+- **Always working software** — Every phase ships working code
+- **Two safe checkpoints** — Stage 1 (plugins) and Stage 2 (v1) are independently valuable
+- **Parallel development** — Different plugins can be modernized concurrently
+- **Low risk Stage 1** — v0 code unchanged, just wrapped
+- **Incremental PRs** — Each phase is a reviewable PR
+- **Ship early** — Can release v0-plugins (same behavior, better structure)
+- **Future extensibility** — Plugin interface enables external plugins later
 
 ### Negative
 
-- Temporary code duplication (v0 + v1 coexist)
+- Temporary code duplication (plugin wrappers + v0 code)
 - Longer timeline than greenfield rewrite
-- Must maintain both codepaths until Phase 8
+- Must maintain wrapper code until Stage 2 complete
 
 ### Mitigations
 
-- Clear naming convention (`*_v1.go`)
-- Track progress in beads issue
-- Automated tests verify both paths work
+- Stage 1 wrappers are thin (minimal maintenance)
+- Clear progress tracking per plugin
+- Automated tests verify behavior unchanged
+- Can ship Stage 1 as interim release
 
 ## References
 
 - [Strangler Fig Pattern - Martin Fowler](https://martinfowler.com/bliki/StranglerFigApplication.html)
+- [Internal Plugin Architecture - kubectl pattern](https://kubernetes.io/docs/tasks/extend-kubectl/kubectl-plugins/)
 - [ADR 0002: Hybrid Architecture Patterns](0002-hybrid-architecture-patterns.md)
 - [beads-v1-architecture.md](../beads-v1-architecture.md)
