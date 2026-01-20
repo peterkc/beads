@@ -1,0 +1,159 @@
+# GitHub Action: Sync Fork with Upstream
+# Copy to: .github/workflows/sync-upstream.yml in peterkc/beads fork
+#
+# Keeps fork's main in sync with steveyegge/beads
+# Optionally rebases v1/develop on updated main
+
+name: Sync Upstream
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      rebase_v1:
+        description: 'Also rebase v1/develop on main'
+        required: false
+        default: 'true'
+        type: boolean
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync-main:
+    runs-on: ubuntu-latest
+    outputs:
+      sync_status: ${{ steps.sync.outputs.status }}
+      commits_behind: ${{ steps.check.outputs.behind }}
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/steveyegge/beads.git || true
+          git fetch upstream
+
+      - name: Check sync status
+        id: check
+        run: |
+          BEHIND=$(git rev-list --count main..upstream/main)
+          echo "behind=$BEHIND" >> $GITHUB_OUTPUT
+          echo "Fork is $BEHIND commits behind upstream"
+
+      - name: Sync main with upstream
+        id: sync
+        run: |
+          if [ "${{ steps.check.outputs.behind }}" -gt 0 ]; then
+            git checkout main
+            git merge upstream/main --no-edit
+            git push origin main
+            echo "status=synced" >> $GITHUB_OUTPUT
+            echo "✅ Synced ${{ steps.check.outputs.behind }} commits from upstream"
+          else
+            echo "status=up-to-date" >> $GITHUB_OUTPUT
+            echo "✅ Already up to date"
+          fi
+
+  rebase-v1:
+    needs: sync-main
+    if: ${{ github.event.inputs.rebase_v1 == 'true' || github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: v1/develop
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Attempt rebase
+        id: rebase
+        continue-on-error: true
+        run: |
+          git fetch origin main
+          git rebase origin/main
+          if [ $? -eq 0 ]; then
+            git push origin v1/develop --force-with-lease
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ v1/develop rebased on main"
+          else
+            git rebase --abort
+            echo "status=conflict" >> $GITHUB_OUTPUT
+            echo "❌ Rebase conflicts detected"
+          fi
+
+      - name: Create issue on conflict
+        if: steps.rebase.outputs.status == 'conflict'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🔄 v1/develop rebase conflict with main';
+            const body = `
+            ## Upstream Sync Conflict
+
+            The automated rebase of \`v1/develop\` onto \`main\` failed due to conflicts.
+
+            **Action required:**
+            1. Checkout \`v1/develop\` locally
+            2. Run \`git fetch origin && git rebase origin/main\`
+            3. Resolve conflicts
+            4. Push with \`git push --force-with-lease\`
+
+            **Upstream commits synced:** ${{ needs.sync-main.outputs.commits_behind }}
+
+            ---
+            *This issue was created automatically by the sync-upstream workflow.*
+            `;
+
+            // Check if similar issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'sync-conflict'
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['sync-conflict', 'v1']
+              });
+            }
+
+  notify-sync:
+    needs: [sync-main, rebase-v1]
+    if: always() && needs.sync-main.outputs.commits_behind > 0
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Summary
+        run: |
+          echo "## Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Commits synced | ${{ needs.sync-main.outputs.commits_behind }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Main sync | ${{ needs.sync-main.outputs.sync_status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| v1/develop rebase | ${{ needs.rebase-v1.result }} |" >> $GITHUB_STEP_SUMMARY

@@ -81,12 +81,42 @@ build:
 
 ### Workflow
 
-1. **Sync regularly**: `git fetch upstream && git merge upstream/main` into fork's `main`
+1. **Sync regularly**: Automated via GitHub Action (daily) or manual
 2. **Develop phases**: Work in `v1/phase-*` branches
 3. **Integrate**: Merge phases into `v1/develop` for testing
 4. **Rebase before PR**: Keep phases rebased on latest `main`
 5. **PR to upstream**: When phase is stable, PR to `steveyegge/beads`
 6. **Final PR**: Rename `bdx` → `bd` when v1.0 ships
+
+### Automated Sync (GitHub Action)
+
+A GitHub Action automates keeping the fork in sync with upstream:
+
+```yaml
+# .github/workflows/sync-upstream.yml
+# See: research/system-diagrams/workflows/sync-upstream.yml
+
+Schedule: Daily at 6 AM UTC
+Manual: workflow_dispatch with rebase_v1 option
+
+Jobs:
+1. sync-main      → Merge upstream/main into fork's main
+2. rebase-v1      → Rebase v1/develop on updated main
+3. notify-sync    → Summary + create issue on conflict
+```
+
+**On conflict:**
+- Workflow creates GitHub issue with `sync-conflict` label
+- Developer resolves manually, closes issue
+
+**Setup:**
+```bash
+# Copy workflow to fork
+cp research/system-diagrams/workflows/sync-upstream.yml .github/workflows/
+git add .github/workflows/sync-upstream.yml
+git commit -m "ci: add upstream sync workflow"
+git push
+```
 
 ### Why Fork + Strangler Fig (Hybrid)
 
