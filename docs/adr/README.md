@@ -7,6 +7,8 @@ This directory contains Architecture Decision Records (ADRs) for bdx (beads v1).
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [0001](0001-daemon-version-supersession.md) | Daemon Version Supersession | Accepted | 2026-01-20 |
+| [0002](0002-interface-segregation.md) | Interface Segregation (Ports & Adapters) | Proposed | 2026-01-20 |
+| [0003](0003-documentation-evolution.md) | Documentation Evolution Strategy | Proposed | 2026-01-20 |
 
 ## What is an ADR?
 
