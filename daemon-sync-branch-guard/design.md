@@ -53,11 +53,11 @@ Adding the guard to `performExport`, `performAutoImport`, `performSync` ensures 
 
 These scenarios validate that the guard re-checks on each operation (not just startup), mitigating risk R-002:
 
-| # | Scenario | Start State | Action | End State | Expected |
-|---|----------|-------------|--------|-----------|----------|
-| 10 | Switch TO sync-branch | on `main`, sync=`main` | daemon export | - | Block (checked each op) |
-| 11 | Switch FROM sync-branch | on `sync`, sync=`sync` | checkout `main` → export | - | Allow (re-checked) |
-| 12 | Config hot reload | sync=`A` | change config to sync=`B` | - | Uses new value |
+| # | Scenario | Start State | Action | End State | Expected | Test |
+|---|----------|-------------|--------|-----------|----------|------|
+| 10 | Switch TO sync-branch | on `main`, sync=`main` | daemon export | - | Block (checked each op) | TestDaemonExportDynamicBranchSwitch |
+| 11 | Switch FROM sync-branch | on `sync`, sync=`sync` | checkout `main` → export | - | Allow (re-checked) | TestDaemonExportAfterBranchChange |
+| 12 | Config hot reload | sync=`A` | change config to sync=`B` | - | Uses new value | TestDaemonExportConfigReload |
 
 ### Entry Point Coverage
 

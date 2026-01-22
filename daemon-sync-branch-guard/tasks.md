@@ -15,6 +15,7 @@ Add guard to one daemon entry point and verify the guard works end-to-end.
 
 ```bash
 go test -v ./cmd/bd -run TestDaemonExport
+go test -v ./cmd/bd -run TestDaemonExport -cover  # New code must be covered
 ```
 
 ---

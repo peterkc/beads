@@ -10,6 +10,7 @@ success_criteria:
   - 'SC-002: Daemon startup warns about misconfigured sync-branch'
   - 'SC-003: All test matrix scenarios pass'
   - 'SC-004: Existing daemon tests continue to pass'
+  - 'SC-005: New guard code has test coverage (go test -cover)'
 
 phases:
   - name: 'Phase 1: Tracer Bullet'
@@ -54,6 +55,7 @@ location:
 | SC-002 | Daemon startup warns about misconfigured sync-branch | `TestDaemonStartupWarnsSameBranch` passes        |
 | SC-003 | All test matrix scenarios pass                       | `go test ./cmd/bd -run "SameBranch"`             |
 | SC-004 | Existing daemon tests continue to pass               | `go test ./cmd/bd -run "TestDaemon\|TestSync"`   |
+| SC-005 | New guard code has test coverage                     | `go test ./cmd/bd -run "SameBranch" -cover`      |
 
 ## Scope
 
