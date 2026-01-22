@@ -49,7 +49,9 @@ Adding the guard to `performExport`, `performAutoImport`, `performSync` ensures 
 | 8 | Worktree context | `beads-sync` | `feature-x` | Allow | In worktree, different branch |
 | 9 | Worktree same branch | `feature-x` | `feature-x` | Block | Worktree on sync-branch |
 
-### Dynamic Branch Change Scenarios
+### Dynamic Branch Change Scenarios (R-002 Mitigation)
+
+These scenarios validate that the guard re-checks on each operation (not just startup), mitigating risk R-002:
 
 | # | Scenario | Start State | Action | End State | Expected |
 |---|----------|-------------|--------|-----------|----------|

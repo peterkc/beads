@@ -87,7 +87,16 @@ location:
 | ID    | Risk                            | Likelihood | Impact | Mitigation                           |
 | ----- | ------------------------------- | ---------- | ------ | ------------------------------------ |
 | R-001 | Guard breaks valid daemon usage | Low        | High   | Fail-open pattern (match sync.go)    |
-| R-002 | Dynamic branch switch missed    | Medium     | Medium | Re-check each operation, not startup |
+| R-002 | Dynamic branch switch missed    | Medium     | Medium | Re-check each operation, not startup (see design.md scenarios 10-12) |
+| R-003 | Test state leakage (Cobra flags) | High      | Medium | Reset flags in test teardown; use t.Parallel() carefully |
+| R-004 | BEADS_SYNC_BRANCH env override conflicts | Low | Medium | Guard checks resolved value from `syncbranch.Get()`, not raw config |
+| R-005 | Users ignore warning logs       | Medium     | Low    | Log at WARN level; startup message is prominent |
+| R-006 | Guard activates mid-operation   | Low        | Low    | Guard checks at operation START, not during; atomic decision |
+
+## Unknowns
+
+- **TBD-001**: Exact log format for daemon warnings (INFO vs WARN level)
+- **TBD-002**: Whether to add metrics/telemetry for guard activations (future observability)
 
 ## Test Matrix
 
