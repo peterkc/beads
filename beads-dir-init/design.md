@@ -2,99 +2,168 @@
 
 ## Overview
 
-Align `checkExistingBeadsData()` with the BEADS_DIR-first resolution order used throughout beads.
+Make `bd init` respect BEADS_DIR environment variable throughout the initialization process:
+1. Safety check (`checkExistingBeadsData`)
+2. Database path determination (`initDBPath`)
+3. Contributor wizard default (`runContributorWizard`)
 
 ## Current Architecture
 
 ```
-checkExistingBeadsData(prefix):
-  1. Get CWD
-  2. If worktree → beadsDir = mainRepoRoot/.beads
-  3. Else → beadsDir = cwd/.beads
-  4. Check beadsDir for existing data
-```
+bd init execution flow:
 
-**Problem**: Step 2-3 ignores BEADS_DIR environment variable.
+1. checkExistingBeadsData(prefix)
+   |
+   +-- if worktree: beadsDir = mainRepoRoot/.beads
+   +-- else: beadsDir = cwd/.beads           <-- BUG: ignores BEADS_DIR
+   |
+   +-- Check beadsDir for existing data
+
+2. Determine initDBPath
+   |
+   +-- if --db flag: use flag value
+   +-- if BEADS_DB env: use env value
+   +-- else: ".beads/beads.db" or ".beads/dolt"  <-- BUG: ignores BEADS_DIR
+
+3. [if --contributor] runContributorWizard()
+   |
+   +-- Warn if BEADS_DIR set
+   +-- Ask for planning repo path
+   +-- Default: ~/.beads-planning              <-- BUG: should be BEADS_DIR
+```
 
 ## Proposed Architecture
 
 ```
-checkExistingBeadsData(prefix):
-  1. If BEADS_DIR set → beadsDir = BEADS_DIR (ADDED)
-  2. Else if worktree → beadsDir = mainRepoRoot/.beads
-  3. Else → beadsDir = cwd/.beads
-  4. Check beadsDir for existing data
+bd init execution flow (after fix):
+
+1. checkExistingBeadsData(prefix)
+   |
+   +-- if BEADS_DIR set: beadsDir = BEADS_DIR    <-- NEW: check first
+   +-- elif worktree: beadsDir = mainRepoRoot/.beads
+   +-- else: beadsDir = cwd/.beads
+   |
+   +-- Check beadsDir for existing data
+
+2. Determine initDBPath
+   |
+   +-- if --db flag: use flag value
+   +-- if BEADS_DB env: use env value
+   +-- if BEADS_DIR env: use BEADS_DIR           <-- NEW: check before default
+   +-- else: ".beads/beads.db" or ".beads/dolt"
+
+3. [if --contributor] runContributorWizard()
+   |
+   +-- Warn if BEADS_DIR set
+   +-- Ask for planning repo path
+   +-- Default: BEADS_DIR (if set)               <-- NEW: use BEADS_DIR
+   +-- Fallback: ~/.beads-planning
 ```
 
-This mirrors the resolution order in `FindBeadsDir()` (lines 482-496).
+## Implementation Details
 
-## Implementation Approach
+### Change 1: checkExistingBeadsData() in cmd/bd/init.go
 
-### Change to `cmd/bd/init.go`
-
-Add BEADS_DIR check at the start of `checkExistingBeadsData()`:
+Add BEADS_DIR check at start of function:
 
 ```go
 func checkExistingBeadsData(prefix string) error {
-    // 1. Check BEADS_DIR environment variable first (preferred, matches FindBeadsDir)
+    // NEW: Check BEADS_DIR environment variable first (matches FindBeadsDir pattern)
     if envBeadsDir := os.Getenv("BEADS_DIR"); envBeadsDir != "" {
         absBeadsDir := utils.CanonicalizePath(envBeadsDir)
+        // Check this path instead of CWD
         return checkExistingBeadsDataAt(absBeadsDir, prefix)
     }
 
-    // 2. Existing logic for worktree and local checks
+    // Existing logic for worktree and CWD checks...
     cwd, err := os.Getwd()
-    // ... rest unchanged
+    // ...
 }
 ```
 
-### Helper Extraction (Optional Refactor)
+### Change 2: initDBPath determination in cmd/bd/init.go
 
-Consider extracting the existence check logic into a helper:
+Add BEADS_DIR check before default path:
 
 ```go
-func checkExistingBeadsDataAt(beadsDir string, prefix string) error {
-    // Check if .beads directory exists
-    if _, err := os.Stat(beadsDir); os.IsNotExist(err) {
-        return nil // No .beads directory, safe to init
+// Around line 143-151
+initDBPath := dbPath
+if backend == configfile.BackendDolt {
+    if envBeadsDir := os.Getenv("BEADS_DIR"); envBeadsDir != "" {
+        initDBPath = filepath.Join(envBeadsDir, "dolt")  // NEW
+    } else {
+        initDBPath = filepath.Join(".beads", "dolt")
     }
-
-    // Check for existing database (SQLite or Dolt)
-    // ... existing logic from lines 838-858
+} else if initDBPath == "" {
+    if envBeadsDir := os.Getenv("BEADS_DIR"); envBeadsDir != "" {
+        initDBPath = filepath.Join(envBeadsDir, beads.CanonicalDatabaseName)  // NEW
+    } else {
+        localBeadsDir := filepath.Join(".", ".beads")
+        targetBeadsDir := beads.FollowRedirect(localBeadsDir)
+        initDBPath = filepath.Join(targetBeadsDir, beads.CanonicalDatabaseName)
+    }
 }
 ```
 
-**Decision**: Keep inline for Phase 1 (tracer). Refactor if tests reveal duplication issues.
+### Change 3: runContributorWizard() in cmd/bd/init_contributor.go
+
+Use BEADS_DIR as default when set:
+
+```go
+// Around where default planning repo is set
+defaultPlanningRepo := "~/.beads-planning"
+if envBeadsDir := os.Getenv("BEADS_DIR"); envBeadsDir != "" {
+    // Use BEADS_DIR as default since user explicitly set it
+    defaultPlanningRepo = envBeadsDir
+}
+
+fmt.Printf("Where should contributor planning issues be stored?\n")
+fmt.Printf("Default: %s\n", defaultPlanningRepo)
+```
 
 ## Key Decisions
 
-### KD-001: BEADS_DIR Takes Absolute Priority
+### KD-001: BEADS_DIR Takes Absolute Priority Over Worktree
 
-**Decision**: When BEADS_DIR is set, skip ALL local/worktree checks.
+**Decision**: When BEADS_DIR is set, skip worktree detection entirely.
 
-**Rationale**: BEADS_DIR is an explicit override. Mixed resolution could cause confusing errors.
+**Rationale**: BEADS_DIR is an explicit override. User knows what they want.
 
-**Alternative considered**: Check both BEADS_DIR and local, warn about both. Rejected: adds complexity without benefit.
+**Alternative considered**: Check both, warn about mismatch. Rejected: adds complexity.
 
-### KD-002: Error Message References Actual Target
+### KD-002: BEADS_DIR Overrides --db Flag Precedence
 
-**Decision**: Error message shows BEADS_DIR path when that env var is set.
+**Decision**: Keep existing precedence: `--db` > `BEADS_DB` > `BEADS_DIR` > default.
 
-**Rationale**: User needs to know which path is blocking init.
+**Rationale**: Explicit flags should still win for flexibility.
+
+### KD-003: Wizard Default vs Skip Wizard
+
+**Decision**: If BEADS_DIR set and user continues, use BEADS_DIR as default (not skip).
+
+**Rationale**: User explicitly chose to continue; honor their BEADS_DIR preference.
 
 ## Applied Patterns
 
-- **BEADS_DIR-first resolution**: Consistent with `FindBeadsDir()`, `FindDatabasePath()`, `findLocalBeadsDir()`
-- **Minimal change principle**: Single early-return, existing code unchanged
+- **BEADS_DIR-first resolution**: Consistent with `FindBeadsDir()`, `FindDatabasePath()`
+- **Minimal change principle**: Early returns, existing code mostly unchanged
+- **Precedence preservation**: Explicit flags still override env vars
 
-## Risks
+## Risks and Mitigations
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Break existing worktree behavior | Low | High | Test worktree scenarios explicitly |
-| Change default behavior | None | High | BEADS_DIR check only triggers when set |
+| Risk | Mitigation |
+|------|------------|
+| Break worktree detection | BEADS_DIR check is additive; worktree logic unchanged when not set |
+| Break contributor routing | Routing code untouched; only wizard default affected |
+| Change default behavior | All changes guarded by `if BEADS_DIR set` |
 
 ## Test Strategy
 
-1. **Unit test**: `TestCheckExistingBeadsData_WithBEADS_DIR`
+1. **Unit tests**: Add to `cmd/bd/init_test.go`
+   - `TestCheckExistingBeadsData_WithBEADS_DIR`
+   - `TestInitDBPath_WithBEADS_DIR`
+   - `TestContributorWizard_BEADS_DIR_Default`
+
 2. **Integration**: Manual test in beads-next with BEADS_DIR routing
+
+3. **Regression**: Run full test suite to verify no breakage
