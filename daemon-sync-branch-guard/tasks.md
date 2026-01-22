@@ -35,6 +35,12 @@ Add guard to all remaining daemon entry points.
   - [ ] `TestDaemonSyncSkipsSameBranch`
   - [ ] `TestSyncBranchCommitSkipsSameBranch`
   - [ ] `TestSyncBranchPullSkipsSameBranch`
+- [P] Write edge case tests (scenarios 8-12 from test matrix)
+  - [ ] `TestDaemonExportWorktreeDifferentBranch` (scenario 8)
+  - [ ] `TestDaemonExportWorktreeSameBranch` (scenario 9)
+  - [ ] `TestDaemonExportDynamicBranchSwitch` (scenario 10)
+  - [ ] `TestDaemonExportAfterBranchChange` (scenario 11)
+  - [ ] `TestDaemonExportConfigReload` (scenario 12)
 
 ### Validation
 
@@ -89,13 +95,21 @@ gh pr create --draft --title "fix: add sync-branch guard to daemon code paths" -
 
 ## Test Matrix Reference
 
-See `design.md` for comprehensive test scenarios. Key scenarios to cover:
+All 12 core scenarios from `design.md` mapped to test functions:
 
-| Scenario | Expected |
-|----------|----------|
-| sync-branch == current-branch | Block + log |
-| sync-branch != current-branch | Allow |
-| No sync-branch configured | Allow |
-| Detached HEAD | Allow (fail-open) |
-| Local-only mode | Allow (no sync-branch) |
-| BEADS_SYNC_BRANCH env override | Apply guard |
+| # | Scenario | Expected | Test Function |
+|---|----------|----------|---------------|
+| 1 | Normal config (different branch) | Allow | `TestDaemonExportAllowsDifferentBranch` |
+| 2 | Same branch (config) | Block | `TestDaemonExportSkipsSameBranch` |
+| 3 | Same branch (env override) | Block | `TestDaemonExportSkipsEnvSameBranch` |
+| 4 | No sync-branch configured | Allow | `TestDaemonExportAllowsNoSyncBranch` |
+| 5 | Detached HEAD | Allow | `TestDaemonExportAllowsDetachedHead` |
+| 6 | Non-git directory | Allow | `TestDaemonExportAllowsNonGit` |
+| 7 | Local-only mode | Allow | `TestDaemonLocalExportAllows` |
+| 8 | Worktree (different branch) | Allow | `TestDaemonExportWorktreeDifferentBranch` |
+| 9 | Worktree (same as sync) | Block | `TestDaemonExportWorktreeSameBranch` |
+| 10 | Dynamic switch TO sync-branch | Block | `TestDaemonExportDynamicBranchSwitch` |
+| 11 | Dynamic switch FROM sync-branch | Allow | `TestDaemonExportAfterBranchChange` |
+| 12 | Config hot reload | New value | `TestDaemonExportConfigReload` |
+
+**Phase coverage**: Scenarios 1-7 covered in Phase 1-2. Scenarios 8-12 covered in Phase 2 (edge cases).
