@@ -16,8 +16,26 @@ import (
 	"github.com/steveyegge/beads/internal/config"
 	"github.com/steveyegge/beads/internal/storage"
 	"github.com/steveyegge/beads/internal/storage/sqlite"
+	"github.com/steveyegge/beads/internal/syncbranch"
 	"github.com/steveyegge/beads/internal/types"
 )
+
+// shouldSkipDueToSameBranch checks if operation should be skipped because
+// sync-branch == current-branch. Returns true if should skip, logs reason.
+// Uses fail-open pattern: if branch detection fails, allows operation to proceed.
+func shouldSkipDueToSameBranch(ctx context.Context, store storage.Storage, operation string, log daemonLogger) bool {
+	syncBranch, err := syncbranch.Get(ctx, store)
+	if err != nil || syncBranch == "" {
+		return false // No sync branch configured, allow
+	}
+
+	if syncbranch.IsSyncBranchSameAsCurrent(ctx, syncBranch) {
+		log.log("Skipping %s: sync-branch '%s' is your current branch. Use a dedicated sync branch.", operation, syncBranch)
+		return true
+	}
+
+	return false
+}
 
 // exportToJSONLWithStore exports issues to JSONL using the provided store.
 // If multi-repo mode is configured, routes issues to their respective JSONL files.
@@ -267,9 +285,10 @@ func sanitizeMetadataKey(key string) string {
 // This function does NOT provide atomicity between JSONL write, metadata updates, and DB mtime.
 // If a crash occurs between these operations, metadata may be inconsistent. However, this is
 // acceptable because:
-//   1. The worst case is "JSONL content has changed" error on next export
-//   2. User can fix by running 'bd import' (safe, no data loss)
-//   3. Current approach is simple and doesn't require complex WAL or format changes
+//  1. The worst case is "JSONL content has changed" error on next export
+//  2. User can fix by running 'bd import' (safe, no data loss)
+//  3. Current approach is simple and doesn't require complex WAL or format changes
+//
 // Future: Consider defensive checks on startup if this becomes a common issue.
 func updateExportMetadata(ctx context.Context, store storage.Storage, jsonlPath string, log daemonLogger, keySuffix string) {
 	// Sanitize keySuffix to handle Windows paths with colons
@@ -401,6 +420,13 @@ func performExport(ctx context.Context, store storage.Storage, autoCommit, autoP
 		if skipGit {
 			mode = "local export"
 		}
+
+		// Guard: Skip if sync-branch == current-branch (GH#1258)
+		// Local-only mode (skipGit) doesn't use sync-branch, so skip the guard
+		if !skipGit && shouldSkipDueToSameBranch(exportCtx, store, mode, log) {
+			return
+		}
+
 		log.log("Starting %s...", mode)
 
 		jsonlPath := findJSONLPath()
