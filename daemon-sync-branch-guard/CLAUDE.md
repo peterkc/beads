@@ -101,6 +101,22 @@ location:
 | 6 | Non-git directory | N/A | N/A | Allow | TestDaemonExportAllowsNonGit |
 | 7 | Local-only mode | `beads-sync` | `main` | Allow | TestDaemonLocalExportAllows |
 
+## Out of Scope / Future Work
+
+**Worktree-free fallback mode** — Instead of blocking when sync-branch == current-branch, a future enhancement could implement direct pathspec operations:
+
+| Operation | Worktree-free Approach |
+|-----------|------------------------|
+| Export | `git add .beads/ && git commit` (pathspec-limited) |
+| Import | `git fetch && git checkout origin/{branch} -- .beads/` |
+
+This would allow daemon sync to work even with "misconfigured" sync-branch, but requires:
+- Different merge semantics (no 3-way merge)
+- Conflict handling for .beads/ files
+- Testing for edge cases (detached HEAD, bare repos)
+
+**Not included in this spec** — Ship the guard first (safe, simple), consider fallback later.
+
 ## Spec Files
 
 - [Requirements](requirements.md) — EARS format

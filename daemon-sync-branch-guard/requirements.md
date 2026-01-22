@@ -67,3 +67,4 @@ THE SYSTEM SHALL skip sync-branch guards (no sync-branch in local mode)
 - Blocking daemon startup (only warn, don't prevent)
 - Auto-correcting misconfigured sync-branch
 - UI prompts for reconfiguration
+- Worktree-free fallback mode (future enhancement — see CLAUDE.md)
