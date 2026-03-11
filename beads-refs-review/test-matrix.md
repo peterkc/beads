@@ -24,8 +24,8 @@
 | Mismatch detection             | nil store, disabled                             | auto-reset, silent        | git reset round-trip (Docker) | Server mode warning             |
 | `bd reset`                     | command registered                              | —                         | Real git repo (Docker)        | No-config feedback              |
 | `bd check-refs`                | command registered, disabled                    | behavior (Docker)         | —                             | —                               |
-| `isRebaseInProgress`           | **BROKEN** (B1)                                 | —                         | —                             | Worktree scenario (T1)          |
-| `bd init` config.yaml          | —                                               | —                         | —                             | No assertion (T2)               |
+| `isRebaseInProgress`           | **BROKEN** (Bug-1)                              | —                         | —                             | Worktree scenario (TestGap-1)   |
+| `bd init` config.yaml          | —                                               | —                         | —                             | No assertion (TestGap-2)        |
 | YAML config writer             | 11 update tests, 13 format tests                | —                         | —                             | Comment preservation edge cases |
 | `IsBranchStrategyEnabled`      | 4 subtests                                      | —                         | —                             | Typo detection                  |
 | Stale ref cleanup              | 3 tests                                         | git staging               | —                             | —                               |
@@ -51,7 +51,7 @@ These 12 tests cover the core behavioral guarantees. Require Docker with
 | `TestCheckBeadsRefSyncInSync`           | PASS     | no action when hashes match                   |
 | `TestCheckBeadsRefSyncNoRefs`           | PASS     | no action when no ref files                   |
 | `TestCheckBeadsRefSyncSilentMode`       | PASS     | silent mode variant                           |
-| `TestIsRebaseInProgress` (subtests 2-3) | **FAIL** | B1 confirmed — `sync.Once` cache bug          |
+| `TestIsRebaseInProgress` (subtests 2-3) | **FAIL** | Bug-1 confirmed — `sync.Once` cache bug       |
 
 ## Pre-existing Failures (not introduced by this PR)
 
@@ -70,8 +70,8 @@ No data races detected. Ran new beads-refs tests with `-race` flag — clean.
 
 ## Recommendations
 
-1. **Fix B1** — `TestIsRebaseInProgress` must use `git init` or `git.ResetCaches()`
-1. **Fix B2** — `TestWriteBeadsRefsDisabled` must call `writeBeadsRefs` to be meaningful
-1. **Add worktree test** (T1) — Exercise the actual code path the fix was written for
-1. **Add init assertion** (T2) — `TestInitCommand` should verify config.yaml exists
+1. **Fix Bug-1** — `TestIsRebaseInProgress` must use `git init` or `git.ResetCaches()`
+1. **Fix Bug-2** — `TestWriteBeadsRefsDisabled` must call `writeBeadsRefs` to be meaningful
+1. **Add worktree test** (TestGap-1) — Exercise the actual code path the fix was written for
+1. **Add init assertion** (TestGap-2) — `TestInitCommand` should verify config.yaml exists
 1. **Consider CI with Dolt** — 10 core tests are skip-only without Docker

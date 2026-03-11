@@ -10,7 +10,7 @@
 
 ## Bugs
 
-### B1 — `TestIsRebaseInProgress` silently passes without validating (HIGH)
+### Bug-1 — `TestIsRebaseInProgress` silently passes without validating (HIGH)
 
 **Files**: `cmd/bd/hooks_checkout_test.go:46-80`
 **Found by**: Delta review, Build agent, CR CLI (3 independent sources)
@@ -24,7 +24,7 @@ so `isRebaseInProgress()` always returns `false` — the "rebase-merge exists" a
 **Fix**: Either `git init` the temp dirs, or import `"github.com/steveyegge/beads/internal/git"`
 and call `git.ResetCaches()` between subtests. See `init_test.go:698-702` for the correct pattern.
 
-### B2 — `TestWriteBeadsRefsDisabled` never calls `writeBeadsRefs` (MEDIUM)
+### Bug-2 — `TestWriteBeadsRefsDisabled` never calls `writeBeadsRefs` (MEDIUM)
 
 **File**: `cmd/bd/git_reset_test.go:406-428`
 **Found by**: CR CLI
@@ -33,7 +33,7 @@ Asserts no HEAD file in an empty temp dir but never invokes the function under t
 Passes vacuously. Also, `t.Parallel()` with `config.Initialize()` risks races with
 other tests modifying global config state.
 
-### B3 — CHANGELOG example contradicts description (LOW)
+### Bug-3 — CHANGELOG example contradicts description (LOW)
 
 **File**: `CHANGELOG.md:14-15`
 **Found by**: CR CLI
@@ -43,7 +43,7 @@ Users copying the example configure the opposite behavior.
 
 ## Security
 
-### S1 — Path traversal via branch names (HIGH)
+### Security-1 — Path traversal via branch names (HIGH)
 
 **Files**: `cmd/bd/dolt_head.go:70, 103`
 **Found by**: Peer review
@@ -61,7 +61,7 @@ A branch named `../../etc/something` writes outside `.beads/refs/heads/`.
 constructing paths. Consider using `filepath.Rel` to verify the result stays within
 the refs directory.
 
-### S2 — Committed backup data with PII (MEDIUM)
+### Security-2 — Committed backup data with PII (MEDIUM)
 
 **File**: `.beads/backup/events.jsonl`
 **Found by**: CR CLI
@@ -71,7 +71,7 @@ Should be in `.gitignore` and removed from history.
 
 ## Concurrency
 
-### C1 — `git add` silently fails under concurrent agents (HIGH)
+### Concurrency-1 — `git add` silently fails under concurrent agents (HIGH)
 
 **File**: `cmd/bd/dolt_head.go:78-80`
 **Found by**: colgrep, Peer review
@@ -87,7 +87,7 @@ carries the ref" guarantee is broken.
 **Options**: Retry with backoff, use `git add` only in PersistentPostRun (not inline),
 or document that multi-agent setups should commit refs separately.
 
-### C2 — `lastWrittenRefs` global has no synchronization (LOW)
+### Concurrency-2 — `lastWrittenRefs` global has no synchronization (LOW)
 
 **File**: `cmd/bd/dolt_head.go:20`
 **Found by**: colgrep, Peer review
@@ -96,7 +96,7 @@ Package-level `var lastWrittenRefs string` — safe today (single goroutine path
 but a latent data race if `writeBeadsRefs` is ever called from the background flush
 goroutine. Worth a comment or `sync.Mutex`.
 
-### C3 — Non-atomic two-file write (LOW)
+### Concurrency-3 — Non-atomic two-file write (LOW)
 
 **File**: `cmd/bd/dolt_head.go:57-73`
 **Found by**: Peer review
@@ -106,7 +106,7 @@ A reader between writes sees stale state. Window is small; git uses lock files f
 
 ## UX
 
-### U1 — Reset prompt doesn't explain data loss (MEDIUM)
+### UX-1 — Reset prompt doesn't explain data loss (MEDIUM)
 
 **File**: `cmd/bd/dolt_head.go:218-226`
 **Found by**: Peer review
@@ -114,7 +114,7 @@ A reader between writes sees stale state. Window is small; git uses lock files f
 Prompt says "Reset dolt HEAD to X?" but `DOLT_RESET('--hard')` discards all issue
 changes after that commit. Users may think this is a soft pointer move.
 
-### U2 — `bd reset` without branch_strategy gives no feedback (LOW)
+### UX-2 — `bd reset` without branch_strategy gives no feedback (LOW)
 
 **File**: `cmd/bd/git_reset.go:66`
 **Found by**: Peer review
@@ -122,7 +122,7 @@ changes after that commit. Users may think this is a soft pointer move.
 Git reset runs, but Dolt sync silently skips because `IsBranchStrategyEnabled()` is
 false. User expected Dolt sync but got none.
 
-### U3 — `gitResetLine` parameter is unused (LOW)
+### UX-3 — `gitResetLine` parameter is unused (LOW)
 
 **File**: `cmd/bd/dolt_head.go:134`
 **Found by**: Peer review
@@ -132,7 +132,7 @@ prompt code never references it. Dead parameter.
 
 ## Test Gaps
 
-### T1 — No worktree scenario for `isRebaseInProgress` (MEDIUM)
+### TestGap-1 — No worktree scenario for `isRebaseInProgress` (MEDIUM)
 
 **File**: `cmd/bd/hooks_checkout_test.go`
 **Found by**: Delta review
@@ -140,21 +140,21 @@ prompt code never references it. Dead parameter.
 The fix uses `GetGitDir()` for worktree-aware paths, but no test exercises the worktree
 code path (where `.git` is a gitfile pointing elsewhere).
 
-### T2 — `bd init` test doesn't assert config.yaml creation (LOW)
+### TestGap-2 — `bd init` test doesn't assert config.yaml creation (LOW)
 
 **File**: `cmd/bd/init_test.go:138-185`
 **Found by**: Delta review
 
 Fix is correct but no regression guard against future breakage.
 
-### T3 — 10 core tests require Docker (MEDIUM)
+### TestGap-3 — 10 core tests require Docker (MEDIUM)
 
 **Found by**: Build agent
 
 Round-trip, sync correctness, and E2E tests all skip without Docker. The core
 behavioral guarantees are untested in CI environments without Dolt containers.
 
-### T4 — `cmd/bd/vc.go` — 102 lines changed, no dedicated tests (LOW)
+### TestGap-4 — `cmd/bd/vc.go` — 102 lines changed, no dedicated tests (LOW)
 
 **Found by**: Build agent
 
@@ -182,8 +182,8 @@ Misspelled keys silently enable ref writing with no prompt/reset behavior.
 
 ## Severity Summary
 
-| Severity | Count | IDs                        |
-| -------- | ----- | -------------------------- |
-| HIGH     | 3     | B1, S1, C1                 |
-| MEDIUM   | 5     | B2, S2, U1, T1, T3         |
-| LOW      | 7     | B3, C2, C3, U2, U3, T2, T4 |
+| Severity | Count | IDs                                                                          |
+| -------- | ----- | ---------------------------------------------------------------------------- |
+| HIGH     | 3     | Bug-1, Security-1, Concurrency-1                                             |
+| MEDIUM   | 5     | Bug-2, Security-2, UX-1, TestGap-1, TestGap-3                               |
+| LOW      | 7     | Bug-3, Concurrency-2, Concurrency-3, UX-2, UX-3, TestGap-2, TestGap-4       |
