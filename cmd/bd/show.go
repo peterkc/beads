@@ -11,6 +11,7 @@ import (
 	"github.com/steveyegge/beads/internal/types"
 	"github.com/steveyegge/beads/internal/ui"
 	"github.com/steveyegge/beads/internal/uimd"
+	"github.com/steveyegge/beads/internal/utils"
 	"github.com/steveyegge/beads/issueops"
 )
 
@@ -122,10 +123,48 @@ var showCmd = &cobra.Command{
 			return showIssueChildren(ctx, args, jsonOutput, shortMode)
 		}
 
+		// Batch only ordinary JSON. Missing exact IDs still need partial and
+		// cross-repo resolution; refused arguments must never bypass it.
+		var batchDetails []*issueops.IssueDetails
+		if jsonOutput && !shortMode && !longMode && !currentMode && !showThread {
+			batchDetails = make([]*issueops.IssueDetails, len(args))
+			var ids []string
+			var indices []int
+			for idx, id := range args {
+				if utils.ValidatePartialIDInput(id) == nil {
+					ids = append(ids, id)
+					indices = append(indices, idx)
+				}
+			}
+			if len(ids) > 0 {
+				rd, err := store.DetailBatchReader()
+				if err != nil {
+					return HandleErrorRespectJSON("%v", err)
+				}
+				batch, err := rd.GetBatch(ctx, issueops.DetailBatchRequest{
+					IDs: ids, IncludeDependents: includeDepends,
+					IncludeComments: includeComments, BriefDeps: briefDeps,
+				})
+				if err != nil {
+					return HandleErrorRespectJSON("%v", err)
+				}
+				for i, item := range batch.Items {
+					if item.Found {
+						batchDetails[indices[i]] = item.Issue
+					}
+				}
+			}
+		}
+
 		// Direct mode - use routed resolution for cross-repo lookups
 		allDetails := []interface{}{}
 		foundCount := 0
 		for idx, id := range args {
+			if batchDetails != nil && batchDetails[idx] != nil {
+				allDetails = append(allDetails, batchDetails[idx])
+				foundCount++
+				continue
+			}
 			// Resolve and get issue with routing (e.g., gt-xyz routes to another rig)
 			result, err := resolveAndGetIssueWithRouting(ctx, store, id)
 			if err != nil {

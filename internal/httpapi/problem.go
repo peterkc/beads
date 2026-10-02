@@ -364,6 +364,9 @@ const (
 	OpListIssues    = "listIssues"
 	OpGetIssue      = "getIssue"
 	OpClaimIssue    = "claimIssue"
+
+	// OpBatchGetIssues reads many issues' details, behind issueops.DetailBatchReader.
+	OpBatchGetIssues = "batchGetIssues"
 	// OpBatchCloseIssues closes many issues as one transaction, behind
 	// issueops.BatchCloser. It is the surface's ONLY operation whose 200 body
 	// carries refusals: the role is deliberately not all-or-nothing, so an id
@@ -639,6 +642,8 @@ var operationCodes = map[string][]Code{
 	// this server knows, not the document-level unknown-key rule this table
 	// omits.
 	OpGetIssue: {CodeInvalidArgument, CodeUnauthenticated, CodeNotFound, CodeBusy, CodeDBUnavailable, CodeInternal},
+	// Batch misses are items, not 404s. Invalid IDs and options are 400s.
+	OpBatchGetIssues: {CodeInvalidArgument, CodeUnauthenticated, CodeBusy, CodeDBUnavailable, CodeInternal},
 	// No 400 of its own: the operation takes no parameters, so the only
 	// invalid_argument it can raise is the document-level unknown-query-key
 	// rule this table deliberately omits.

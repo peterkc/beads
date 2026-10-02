@@ -818,6 +818,24 @@ type BatchCreateResponse struct {
 	Items []Issue `json:"items"`
 }
 
+// BatchIssueDetailItem defines model for BatchIssueDetailItem.
+type BatchIssueDetailItem struct {
+	// Found Whether the ID exists in either issue plane.
+	Found bool `json:"found"`
+
+	// Issue The same detail view as `getIssue`, present only when found is true.
+	Issue *IssueDetails `json:"issue,omitempty"`
+
+	// IssueId The exact requested ID.
+	IssueId string `json:"issue_id"`
+}
+
+// BatchIssueDetails defines model for BatchIssueDetails.
+type BatchIssueDetails struct {
+	// Items One item per requested ID, in request order, including repeats.
+	Items []BatchIssueDetailItem `json:"items"`
+}
+
 // Blocker One live blocker named by a blocked-issue refusal.
 type Blocker struct {
 	// Id The blocker: a local issue id, or the full `external:<project>:<capability>` reference.
@@ -1010,7 +1028,7 @@ type ContextResponse struct {
 	// OPTIONAL, and absent means only that this server does not disclose its filesystem layout — never that it has no workspace. A client MUST NOT require it, MUST NOT treat absence as an error, and has no use for the value beyond display: it is a path on the SERVER's filesystem, which the client cannot open. Identify the workspace by `project_id` and `database`, which are required.
 	BeadsDir *string `json:"beads_dir,omitempty"`
 
-	// Capabilities The tokens this server advertises: the OPERATIONS it implements, derived from its route table, and the server-wide BEHAVIORS it enforces. v0's operation vocabulary is `ready.list`, `ready.count`, `issues.list`, `issues.query`, `issues.count`, `issues.get`, `issues.related`, `issues.create`, `issues.addComment`, `issues.batchClose`, `issues.claim`, `issues.claimNext`, `issues.release`, `issues.close`, `issues.reopen`, `issues.update`, `issues.sweep`, `issues.delete`, `issues.batchCreate`, `issues.batchApply`, `stats.get`, `config.list`, `config.get`, `config.set`, `config.unset`, `dependencies.cycles`, `dependencies.list`, `dependencies.count`, `dependencies.blocking`, `dependencies.tree`, `dependencies.add`, `dependencies.remove`, `memories.list`, `memories.get`, `memories.remember`, `memories.forget`, `events.list`, `events.watch`, `issues.casMetadata`; the behavior tokens are `project.enforce`, which announces that a `Bd-Project-Id` stamp for the wrong workspace is refused here rather than silently ignored, and `issues.batchApplyLarge`, which announces that `POST /v0/beads/issues:batchApply` accepts the RAISED envelope — up to 1000 items (`ApplyBatchRequest.items.maxItems`), a 16 MiB body, and (for a request over 100 items) a run budget that EXTENDS to an operator-configured ceiling (`bd serve --large-apply-ceiling`, 5 minutes by default) — rather than the original 100-item, 4 MiB bound. The ceiling is a flat whole-run budget, not a value scaled by item count: a 101-item request and a 1000-item request both get the same extended budget. A request at or under 100 items is unaffected either way and keeps the server's ordinary deadline exactly as before. A client that checks for this token before sending a plan over 100 items learns whether THIS server accepts it without paying for a round trip an older server would refuse anyway. The list grows additively, and an operation never appears here unless it is fully implemented. This is how a client checks for an operation or a behavior — never the version string.
+	// Capabilities The tokens this server advertises: the OPERATIONS it implements, derived from its route table, and the server-wide BEHAVIORS it enforces. v0's operation vocabulary is `ready.list`, `ready.count`, `issues.list`, `issues.query`, `issues.count`, `issues.get`, `issues.batchGet`, `issues.related`, `issues.create`, `issues.addComment`, `issues.batchClose`, `issues.claim`, `issues.claimNext`, `issues.release`, `issues.close`, `issues.reopen`, `issues.update`, `issues.sweep`, `issues.delete`, `issues.batchCreate`, `issues.batchApply`, `stats.get`, `config.list`, `config.get`, `config.set`, `config.unset`, `dependencies.cycles`, `dependencies.list`, `dependencies.count`, `dependencies.blocking`, `dependencies.tree`, `dependencies.add`, `dependencies.remove`, `memories.list`, `memories.get`, `memories.remember`, `memories.forget`, `events.list`, `events.watch`, `issues.casMetadata`; the behavior tokens are `project.enforce`, which announces that a `Bd-Project-Id` stamp for the wrong workspace is refused here rather than silently ignored, and `issues.batchApplyLarge`, which announces that `POST /v0/beads/issues:batchApply` accepts the RAISED envelope — up to 1000 items (`ApplyBatchRequest.items.maxItems`), a 16 MiB body, and (for a request over 100 items) a run budget that EXTENDS to an operator-configured ceiling (`bd serve --large-apply-ceiling`, 5 minutes by default) — rather than the original 100-item, 4 MiB bound. The ceiling is a flat whole-run budget, not a value scaled by item count: a 101-item request and a 1000-item request both get the same extended budget. A request at or under 100 items is unaffected either way and keeps the server's ordinary deadline exactly as before. A client that checks for this token before sending a plan over 100 items learns whether THIS server accepts it without paying for a round trip an older server would refuse anyway. The list grows additively, and an operation never appears here unless it is fully implemented. This is how a client checks for an operation or a behavior — never the version string.
 	//
 	// THIS LIST IS BUILD-LEVEL, NOT WORKSPACE-LEVEL. It says which operations this binary serves, and for every entry but two that is the whole answer. `events.list` and `events.watch` are the exceptions: the durable events journal is a per-workspace setting that is OFF by default, so a server that advertises them may still refuse every request to both with 409 `events_journal_disabled` — correctly, because the operations exist and the workspace has no journal. A consumer of either MUST treat the capability as "this server speaks it" and the 409 as "not on this workspace", and must not read the capability as a promise that records will arrive.
 	Capabilities []string `json:"capabilities"`
@@ -2256,6 +2274,21 @@ type ListRelatedIssuesParams struct {
 
 // ListRelatedIssuesParamsDirection defines parameters for ListRelatedIssues.
 type ListRelatedIssuesParamsDirection string
+
+// BatchGetIssuesParams defines parameters for BatchGetIssues.
+type BatchGetIssuesParams struct {
+	// IssueId Exact IDs, repeated as `issue_id=a&issue_id=b`. Order and repeats are kept. Empty or whitespace-only IDs are refused.
+	IssueId []string `form:"issue_id" json:"issue_id"`
+
+	// IncludeComments Populate each found issue's full comment bodies, as in `getIssue`.
+	IncludeComments *bool `form:"include_comments,omitempty" json:"include_comments,omitempty"`
+
+	// IncludeDependents Populate each found issue's dependents, as in `getIssue`.
+	IncludeDependents *bool `form:"include_dependents,omitempty" json:"include_dependents,omitempty"`
+
+	// BriefDeps Reduce dependency rows to identity-and-shape fields, as in `getIssue`.
+	BriefDeps *bool `form:"brief_deps,omitempty" json:"brief_deps,omitempty"`
+}
 
 // ClaimNextIssueParams defines parameters for ClaimNextIssue.
 type ClaimNextIssueParams struct {

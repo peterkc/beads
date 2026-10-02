@@ -1714,6 +1714,68 @@ paths:
         '503':
           $ref: '#/components/responses/Unavailable'
 
+  /v0/beads/issues:batchGet:
+    get:
+      operationId: batchGetIssues
+      summary: Read issue details in one snapshot
+      description: >-
+        Read exact issue IDs through `issueops.DetailBatchReader` in one snapshot.
+        Items follow request order, including repeated IDs. A missing ID has
+        `found: false` and no `issue` member; it does not fail the request.
+        Found items carry the same detail schema and option semantics as
+        `getIssue`. Any backend read failure fails the whole request, with no
+        partial items. The 100-ID bound belongs to this HTTP operation only.
+      parameters:
+        - name: issue_id
+          in: query
+          required: true
+          description: >-
+            Exact IDs, repeated as `issue_id=a&issue_id=b`. Order and repeats
+            are kept. Empty or whitespace-only IDs are refused.
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 100
+            items:
+              type: string
+        - name: include_comments
+          in: query
+          description: Populate each found issue's full comment bodies, as in `getIssue`.
+          schema:
+            type: boolean
+            default: false
+        - name: include_dependents
+          in: query
+          description: Populate each found issue's dependents, as in `getIssue`.
+          schema:
+            type: boolean
+            default: false
+        - name: brief_deps
+          in: query
+          description: Reduce dependency rows to identity-and-shape fields, as in `getIssue`.
+          schema:
+            type: boolean
+            default: false
+      security:
+        - bearerToken: []
+      responses:
+        '200':
+          description: One item per requested ID, in request order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchIssueDetails'
+        '400':
+          $ref: '#/components/responses/InvalidArgument'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
   /v0/beads/issues:count:
     get:
       operationId: countIssues
@@ -6607,6 +6669,33 @@ components:
           type: string
           description: Parent issue id, computed from the parent-child edge.
 
+    BatchIssueDetails:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: One item per requested ID, in request order, including repeats.
+          items:
+            $ref: '#/components/schemas/BatchIssueDetailItem'
+
+    BatchIssueDetailItem:
+      type: object
+      additionalProperties: false
+      required: [issue_id, found]
+      properties:
+        issue_id:
+          type: string
+          description: The exact requested ID.
+        found:
+          type: boolean
+          description: Whether the ID exists in either issue plane.
+        issue:
+          description: The same detail view as `getIssue`, present only when found is true.
+          allOf:
+            - $ref: '#/components/schemas/IssueDetails'
+
     IssueDetails:
       type: object
       description: >-
@@ -7442,7 +7531,7 @@ components:
             The tokens this server advertises: the OPERATIONS it implements,
             derived from its route table, and the server-wide BEHAVIORS it
             enforces. v0's operation vocabulary is `ready.list`, `ready.count`,
-            `issues.list`, `issues.query`, `issues.count`, `issues.get`,
+            `issues.list`, `issues.query`, `issues.count`, `issues.get`, `issues.batchGet`,
             `issues.related`, `issues.create`, `issues.addComment`,
             `issues.batchClose`,
             `issues.claim`, `issues.claimNext`, `issues.release`,

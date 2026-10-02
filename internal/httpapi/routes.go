@@ -294,6 +294,14 @@ var routeTable = []route{
 		handler:     (*Server).handleCountIssues,
 	},
 	{
+		op:          OpBatchGetIssues,
+		method:      http.MethodGet,
+		pattern:     "/v0/beads/issues:batchGet",
+		capability:  "issues.batchGet",
+		implemented: true,
+		handler:     (*Server).handleBatchGetIssues,
+	},
+	{
 		op:          OpGetIssue,
 		method:      http.MethodGet,
 		pattern:     "/v0/beads/issues/{id}",

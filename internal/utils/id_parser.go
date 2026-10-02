@@ -89,14 +89,22 @@ func ResolvePartialIDExact(ctx context.Context, store PartialIDResolverStore, in
 	return resolvePartialID(ctx, store, input, false)
 }
 
-func resolvePartialID(ctx context.Context, store PartialIDResolverStore, input string, allowAbbrev bool) (string, error) {
-	// Refuse before any lookup: these tokens are a valid partial-ID shape, so
-	// they otherwise reach the leading-prefix abbreviation branch below.
+// ValidatePartialIDInput applies the resolver's pre-lookup refusals without
+// looking up an issue. Batch callers use it to keep refused arguments on the
+// resolver path, even if a store happens to contain that exact ID.
+func ValidatePartialIDInput(input string) error {
 	switch strings.ToLower(strings.TrimSpace(input)) {
 	case "":
-		return "", fmt.Errorf("refusing an empty string as an issue ID")
+		return fmt.Errorf("refusing an empty string as an issue ID")
 	case "null", "undefined", "none", "nil":
-		return "", fmt.Errorf("refusing %q as an issue ID: that is what tooling prints for a missing value (jq/JS null and undefined, Python None, Go/Ruby nil), so the caller's selector matched nothing", input)
+		return fmt.Errorf("refusing %q as an issue ID: that is what tooling prints for a missing value (jq/JS null and undefined, Python None, Go/Ruby nil), so the caller's selector matched nothing", input)
+	}
+	return nil
+}
+
+func resolvePartialID(ctx context.Context, store PartialIDResolverStore, input string, allowAbbrev bool) (string, error) {
+	if err := ValidatePartialIDInput(input); err != nil {
+		return "", err
 	}
 
 	if store == nil {

@@ -91,6 +91,17 @@ func proxiedIssueReader() (issueops.Reader, error) {
 	return src.IssueReader()
 }
 
+func proxiedDetailBatchReader() (issueops.DetailBatchReader, error) {
+	if uowProvider == nil {
+		return nil, errors.New("proxied-server UOW provider not initialized")
+	}
+	src, ok := uowProvider.(uow.DetailBatchReaderSource)
+	if !ok {
+		return nil, fmt.Errorf("proxied-server provider %T does not offer the batch detail surface", uowProvider)
+	}
+	return src.DetailBatchReader()
+}
+
 func runShowProxiedServer(cmd *cobra.Command, ctx context.Context, args []string) error {
 	in := gatherShowProxiedInput(cmd, args)
 
@@ -459,10 +470,43 @@ func runShowProxiedDefault(ctx context.Context, uw uow.UnitOfWork, in *showProxi
 	// role opens one unit of work per call; the one this function holds stays
 	// for the terminal rendering below, which is not on the contract.
 	var rd issueops.Reader
+	var batchItems []issueops.DetailBatchItem
+	needsReader := false
 	if jsonOutput && !in.shortMode {
-		var rerr error
-		if rd, rerr = proxiedIssueReader(); rerr != nil {
-			return HandleErrorRespectJSON("%v", rerr)
+		if !in.longMode && !in.currentMode && !in.thread {
+			batchItems = make([]issueops.DetailBatchItem, len(in.ids))
+			var ids []string
+			var indices []int
+			for idx, id := range in.ids {
+				if strings.TrimSpace(id) != "" {
+					ids = append(ids, id)
+					indices = append(indices, idx)
+				} else {
+					needsReader = true
+				}
+			}
+			if len(ids) > 0 {
+				br, err := proxiedDetailBatchReader()
+				if err != nil {
+					return HandleErrorRespectJSON("%v", err)
+				}
+				batch, err := br.GetBatch(ctx, issueops.DetailBatchRequest{
+					IDs: ids, IncludeDependents: in.includeDepends,
+					IncludeComments: in.includeComments, BriefDeps: in.briefDeps,
+				})
+				if err != nil {
+					return HandleErrorRespectJSON("%v", err)
+				}
+				for i, item := range batch.Items {
+					batchItems[indices[i]] = item
+				}
+			}
+		}
+		if batchItems == nil || needsReader {
+			var rerr error
+			if rd, rerr = proxiedIssueReader(); rerr != nil {
+				return HandleErrorRespectJSON("%v", rerr)
+			}
 		}
 	}
 
@@ -470,6 +514,16 @@ func runShowProxiedDefault(ctx context.Context, uw uow.UnitOfWork, in *showProxi
 	var allDetails []interface{}
 	foundCount := 0
 	for idx, id := range in.ids {
+		if batchItems != nil && strings.TrimSpace(id) != "" {
+			item := batchItems[idx]
+			if !item.Found {
+				reportIssueLookupFailure("fetching", id, storage.ErrNotFound)
+				continue
+			}
+			foundCount++
+			allDetails = append(allDetails, item.Issue)
+			continue
+		}
 		if rd != nil {
 			details, derr := rd.Get(ctx, in.getRequest(id))
 			if derr != nil {

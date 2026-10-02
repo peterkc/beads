@@ -106,6 +106,7 @@ func TestServeIssueRolesComeFromBeneathTheHookDecorator(t *testing.T) {
 			metadataCAS:  &serveStubMetadataCAS{},
 			counter:      &serveStubCounter{},
 			edgeCounter:  &serveStubGraphCounter{},
+			batchReader:  &serveStubDetailBatchReader{},
 			relations:    &serveStubRelations{},
 			commenter:    &serveStubCommenter{},
 			batchCreator: &serveStubBatchCreator{},
@@ -262,6 +263,9 @@ func TestServeIssueRolesComeFromBeneathTheHookDecorator(t *testing.T) {
 	if reader == nil {
 		t.Error("bd serve lost the reader while peeling hooks")
 	}
+	if roles.batchReader != issueops.DetailBatchReader(middle.batchReader) {
+		t.Error("bd serve lost the detail batch reader while peeling hooks")
+	}
 
 	// The lifecycle is the SECOND role the hook decorator wraps, and it wraps
 	// four verbs rather than one — so an unpeeled lifecycle would run this
@@ -411,6 +415,7 @@ type serveRolesStore struct {
 	metadataCAS  *serveStubMetadataCAS
 	counter      *serveStubCounter
 	edgeCounter  *serveStubGraphCounter
+	batchReader  *serveStubDetailBatchReader
 	relations    *serveStubRelations
 	commenter    *serveStubCommenter
 	batchCreator *serveStubBatchCreator
@@ -518,6 +523,16 @@ func (s *serveRolesStore) Counter() (issueops.Counter, error) { return s.counter
 // began binding it; this one was found the same way, by this test panicking the
 // moment the binding landed.
 func (s *serveRolesStore) GraphCounter() (issueops.GraphCounter, error) { return s.edgeCounter, nil }
+
+func (s *serveRolesStore) DetailBatchReader() (issueops.DetailBatchReader, error) {
+	return s.batchReader, nil
+}
+
+type serveStubDetailBatchReader struct{}
+
+func (*serveStubDetailBatchReader) GetBatch(context.Context, issueops.DetailBatchRequest) (issueops.DetailBatchResult, error) {
+	return issueops.DetailBatchResult{}, errors.ErrUnsupported
+}
 
 // IssueRelations is the FIRST role added to serveIssueRoles since this type
 // stopped embedding a nil store, and it is worth recording what that changed —
