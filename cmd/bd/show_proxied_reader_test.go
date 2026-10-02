@@ -28,7 +28,10 @@ func (p readerProvider) IssueReader() (issueops.Reader, error) {
 }
 
 func (p readerProvider) DetailBatchReader() (issueops.DetailBatchReader, error) {
-	uc, _ := p.issues.(stubLookupIssueUC)
+	uc, ok := p.issues.(stubLookupIssueUC)
+	if !ok {
+		return nil, errors.New("readerProvider: batch reader not expected for this use case")
+	}
 	return &showBatchRecorder{err: uc.hardErr}, nil
 }
 
