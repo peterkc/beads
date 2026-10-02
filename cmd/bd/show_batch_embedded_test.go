@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -212,6 +213,68 @@ func TestShowJSONBatchExcludedModes(t *testing.T) {
 			}
 			if !strings.Contains(out, `"id": "bs-current"`) {
 				t.Errorf("output = %s", out)
+			}
+		})
+	}
+}
+
+// One exact ID also takes the batch path; it is the call agents make most.
+// For every option combination, stdout must be byte for byte what the old JSON
+// path printed from Reader.Get, with no per-ID lookup.
+func TestShowJSONBatchEmbeddedSingleIDMatchesReaderGet(t *testing.T) {
+	s, _ := setupShowBatchEmbedded(t)
+	ctx := t.Context()
+	for _, id := range []string{"bs-one", "bs-dep", "bs-child"} {
+		createShowBatchIssue(t, s, id, false)
+	}
+	for _, dep := range []*types.Dependency{
+		{IssueID: "bs-one", DependsOnID: "bs-dep", Type: types.DepBlocks},
+		{IssueID: "bs-child", DependsOnID: "bs-one", Type: types.DepBlocks},
+	} {
+		if err := s.AddDependency(ctx, dep, "tester"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.AddLabel(ctx, "bs-one", "batch", "tester"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddIssueComment(ctx, "bs-one", "tester", "a comment"); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := s.DoltStorage.IssueReader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for mask := 0; mask < 8; mask++ {
+		dependents, comments, brief := mask&1 != 0, mask&2 != 0, mask&4 != 0
+		t.Run(fmt.Sprintf("dependents=%t,comments=%t,brief=%t", dependents, comments, brief), func(t *testing.T) {
+			s.requests, s.getIDs = nil, nil
+			cmd := &cobra.Command{}
+			cmd.Flags().Bool("include-dependents", dependents, "")
+			cmd.Flags().Bool("include-comments", comments, "")
+			cmd.Flags().Bool("brief-deps", brief, "")
+			var err error
+			got := captureStdout(t, func() error {
+				_ = captureStderrDuring(t, func() { err = showCmd.RunE(cmd, []string{"bs-one"}) })
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("show: %v\n%s", err, got)
+			}
+			wantRequest := issueops.DetailBatchRequest{IDs: []string{"bs-one"}, IncludeDependents: dependents, IncludeComments: comments, BriefDeps: brief}
+			if !reflect.DeepEqual(s.requests, []issueops.DetailBatchRequest{wantRequest}) {
+				t.Errorf("batch requests = %+v, want one %+v", s.requests, wantRequest)
+			}
+			if len(s.getIDs) != 0 {
+				t.Errorf("per-ID Get = %v, want none", s.getIDs)
+			}
+			details, err := reader.Get(ctx, showGetRequest("bs-one", dependents, comments, brief))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := captureStdout(t, func() error { return outputJSON([]interface{}{details}) })
+			if got != want {
+				t.Errorf("stdout differs from Reader.Get output\ngot:  %s\nwant: %s", got, want)
 			}
 		})
 	}
