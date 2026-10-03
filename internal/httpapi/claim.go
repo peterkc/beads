@@ -349,6 +349,7 @@ var (
 	_ uow.CycleDetectorSource       = timedProvider{}
 	_ uow.EdgeReaderSource          = timedProvider{}
 	_ uow.GraphCounterSource        = timedProvider{}
+	_ uow.DetailBatchReaderSource   = timedProvider{}
 	_ uow.RelationsSource           = timedProvider{}
 	_ uow.CommenterSource           = timedProvider{}
 	_ uow.BlockingAnnotatorSource   = timedProvider{}
@@ -465,6 +466,10 @@ func (p timedProvider) EdgeReader() (issueops.EdgeReader, error) {
 // reason and with the same hazard as IssueReader.
 func (p timedProvider) GraphCounter() (issueops.GraphCounter, error) {
 	return uow.NewGraphCounter(p)
+}
+
+func (p timedProvider) DetailBatchReader() (issueops.DetailBatchReader, error) {
+	return uow.NewDetailBatchReader(p)
 }
 
 // IssueRelations builds the single-anchor neighbor role OVER THIS WRAPPER, for

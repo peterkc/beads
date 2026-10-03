@@ -65,7 +65,9 @@ func ValidateDetailBatchRequest(request DetailBatchRequest) error {
 // hooks. Implementations snapshot the request without mutating caller-owned
 // values. Validation failures match ErrValidation. An empty list and invalid
 // IDs return before opening a transaction; every other failed read returns an
-// error and no items. The CLI and HTTP front doors land in a later PR.
+// error and no items. Ordinary JSON bd show uses this role for local exact-ID
+// reads. GET /v0/beads/issues:batchGet serves it with a transport-only bound of
+// 1 to 100 IDs and the same detail options as getIssue.
 type DetailBatchReader interface {
 	GetBatch(ctx context.Context, request DetailBatchRequest) (DetailBatchResult, error)
 }

@@ -317,6 +317,7 @@ func runServe() error {
 			CycleDetector:     roles.cycles,
 			EdgeReader:        roles.edges,
 			GraphCounter:      roles.edgeCounter,
+			DetailBatchReader: roles.batchReader,
 			Relations:         roles.relations,
 			Commenter:         roles.commenter,
 			BlockingAnnotator: roles.blocking,
@@ -672,6 +673,7 @@ type serveRoleSource interface {
 	CycleDetector() (issueops.CycleDetector, error)
 	EdgeReader() (issueops.EdgeReader, error)
 	GraphCounter() (issueops.GraphCounter, error)
+	DetailBatchReader() (issueops.DetailBatchReader, error)
 	IssueRelations() (issueops.Relations, error)
 	Commenter() (issueops.Commenter, error)
 	BlockingAnnotator() (issueops.BlockingAnnotator, error)
@@ -738,6 +740,7 @@ func serveIssueRoles(src serveRoleSource, journalEnabled bool) (serveRoles, erro
 		{"cycle detector", func() (err error) { roles.cycles, err = src.CycleDetector(); return }},
 		{"edge reader", func() (err error) { roles.edges, err = src.EdgeReader(); return }},
 		{"graph counter", func() (err error) { roles.edgeCounter, err = src.GraphCounter(); return }},
+		{"detail batch reader", func() (err error) { roles.batchReader, err = src.DetailBatchReader(); return }},
 		{"issue relations", func() (err error) { roles.relations, err = src.IssueRelations(); return }},
 		{"commenter", func() (err error) { roles.commenter, err = src.Commenter(); return }},
 		{"blocking annotator", func() (err error) { roles.blocking, err = src.BlockingAnnotator(); return }},
@@ -845,6 +848,7 @@ type serveRoles struct {
 	cycles       issueops.CycleDetector
 	edges        issueops.EdgeReader
 	edgeCounter  issueops.GraphCounter
+	batchReader  issueops.DetailBatchReader
 	relations    issueops.Relations
 	commenter    issueops.Commenter
 	blocking     issueops.BlockingAnnotator

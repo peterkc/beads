@@ -1088,6 +1088,7 @@ go_test(
         "shared_server_integration_test.go",
         "shared_store_migrate_gate_test.go",
         "ship_embedded_test.go",
+        "show_batch_embedded_test.go",
         "show_brief_deps_test.go",
         "show_current_test.go",
         "show_details_json_test.go",

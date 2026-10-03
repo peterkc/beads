@@ -4,8 +4,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"reflect"
 	"testing"
 )
 
@@ -274,5 +277,93 @@ func TestProxiedServerServeCount(t *testing.T) {
 		}
 	})
 
+	sp.shutdown(t)
+}
+
+// TestProxiedServerServeBatchGet covers provider construction and detail parity
+// against the single-item endpoint through a real bd serve subprocess.
+func TestProxiedServerServeBatchGet(t *testing.T) {
+	requireSharedProxiedServer(t)
+	bd := buildEmbeddedBD(t)
+	p := newSharedProxiedProject(t, bd, "srvbatch")
+	sp := startServe(t, bd, p.dir, bdProxiedEnv(p.dir))
+	first := bdProxiedCreate(t, bd, p.dir, "batch durable", "--description", "full dependency text", "-l", "batch-label")
+	second := bdProxiedCreate(t, bd, p.dir, "batch wisp", "--ephemeral", "--wisp-type", "heartbeat")
+	if out, err := bdProxiedRun(t, bd, p.dir, "dep", "add", second.ID, first.ID); err != nil {
+		t.Fatalf("seed dependency: %v\n%s", err, out)
+	}
+	if out, err := bdProxiedRun(t, bd, p.dir, "comments", "add", first.ID, "batch comment"); err != nil {
+		t.Fatalf("seed comment: %v\n%s", err, out)
+	}
+	ids := []string{second.ID, "srvbatch-missing", first.ID, second.ID}
+	for options := 0; options < 8; options++ {
+		t.Run(fmt.Sprintf("options=%d", options), func(t *testing.T) {
+			q := url.Values{}
+			q.Set("include_comments", fmt.Sprint(options&1 != 0))
+			q.Set("include_dependents", fmt.Sprint(options&2 != 0))
+			q.Set("brief_deps", fmt.Sprint(options&4 != 0))
+			optionQuery := q.Encode()
+			q["issue_id"] = ids
+			resp, err := sp.client.Get(sp.url("/v0/beads/issues:batchGet?" + q.Encode()))
+			if err != nil {
+				t.Fatalf("batch GET: %v\nstderr:\n%s", err, sp.stderr.String())
+			}
+			raw, err := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("batch status = %d, want 200: %s", resp.StatusCode, raw)
+			}
+			var batch struct {
+				Items []struct {
+					IssueID string          `json:"issue_id"`
+					Found   bool            `json:"found"`
+					Issue   json.RawMessage `json:"issue"`
+				} `json:"items"`
+			}
+			if err := json.Unmarshal(raw, &batch); err != nil {
+				t.Fatalf("decode batch: %v", err)
+			}
+			if len(batch.Items) != len(ids) {
+				t.Fatalf("items = %d, want %d: %s", len(batch.Items), len(ids), raw)
+			}
+			for i, id := range ids {
+				item := batch.Items[i]
+				if item.IssueID != id || item.Found != (i != 1) {
+					t.Fatalf("item %d = %+v, want %q found %v", i, item, id, i != 1)
+				}
+				if i == 1 {
+					if item.Issue != nil {
+						t.Errorf("missing issue member = %s, want absent", item.Issue)
+					}
+					continue
+				}
+				single, err := sp.client.Get(sp.url("/v0/beads/issues/" + id + "?" + optionQuery))
+				if err != nil {
+					t.Fatal(err)
+				}
+				singleRaw, err := io.ReadAll(single.Body)
+				_ = single.Body.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if single.StatusCode != http.StatusOK {
+					t.Fatalf("single GET status = %d: %s", single.StatusCode, singleRaw)
+				}
+				var got, want map[string]json.RawMessage
+				if err := json.Unmarshal(item.Issue, &got); err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal(singleRaw, &want); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("item %d detail = %s, getIssue = %s", i, item.Issue, singleRaw)
+				}
+			}
+		})
+	}
 	sp.shutdown(t)
 }
