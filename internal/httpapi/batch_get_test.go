@@ -1,12 +1,14 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/steveyegge/beads/internal/httpapi/apigen"
 	"github.com/steveyegge/beads/internal/types"
@@ -210,5 +212,44 @@ func TestBatchGetIssuesSpecMatchesHandler(t *testing.T) {
 	ref := issue["allOf"].([]any)[0].(map[string]any)["$ref"]
 	if ref != "#/components/schemas/IssueDetails" {
 		t.Errorf("batch issue schema = %v, want getIssue's IssueDetails", ref)
+	}
+}
+
+// batchDetailIssues answers GetDetailBatch with every ID absent, so the
+// provider-backed batch route can run end to end without a database.
+type batchDetailIssues struct{ recordingIssues }
+
+func (*batchDetailIssues) GetDetailBatch(_ context.Context, req issueops.DetailBatchRequest) (issueops.DetailBatchResult, error) {
+	items := make([]issueops.DetailBatchItem, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		items = append(items, issueops.DetailBatchItem{ID: id})
+	}
+	return issueops.DetailBatchResult{Items: items}, nil
+}
+
+// TestBatchGetTimesTheUnitOfWorkItsReaderOpens is the batch twin of
+// TestAReadRouteTimesTheUnitsOfWorkItsReaderOpens. A batch reader built on
+// the untimed provider compiles and answers, but reports uow_ms=0.000.
+func TestBatchGetTimesTheUnitOfWorkItsReaderOpens(t *testing.T) {
+	provider := &fakeProvider{
+		issues:     &fakeIssues{},
+		readIssues: &batchDetailIssues{},
+		readConfig: emptyConfig{},
+		delay:      5 * time.Millisecond,
+	}
+	ts := newTestServer(t, Config{Provider: provider})
+
+	if resp := ts.get(t, "/v0/beads/issues:batchGet?issue_id=bd-1"); resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", resp.StatusCode, readAll(t, resp))
+	}
+	if n := len(provider.openedUOWs()); n != 1 {
+		t.Fatalf("opened %d units of work, want 1", n)
+	}
+	line := findLogLine(t, ts.stderr.String(), "op="+OpBatchGetIssues)
+	if !strings.Contains(line, "uow_ms=") {
+		t.Fatalf("batchGet request line has no uow_ms field:\n%s", line)
+	}
+	if strings.Contains(line, "uow_ms=0.000") {
+		t.Errorf("batchGet request line reports no unit-of-work time though the provider took 5ms; the batch reader is bound to the untimed provider:\n%s", line)
 	}
 }
