@@ -75,10 +75,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Engine interface:** `storage.Storage` now requires `DetailBatchReader()`.
   Backend implementers must supply the new read role, which returns ordered
   issue details for exact IDs from one snapshot. Existing `Reader.Get` remains
-  unchanged; CLI and HTTP adoption will follow separately.
+  unchanged.
 
 ### Changed
 
+- `bd show --json` with several IDs reads the local exact IDs in one storage
+  snapshot instead of one detail read per ID. Partial, routed and missing IDs
+  resolve as before. A backend read failure now fails the whole call with a
+  JSON error and exit 1, instead of printing `Error fetching <id>` and
+  continuing. On the direct-server and proxied routes, an issue's outgoing
+  `dependencies` now come back in a fixed order; before, the database chose it.
 - `bd preflight --fix --json` no longer returns a `Version sync` fix result:
   version updates must keep all release surfaces aligned via `scripts/update-versions.sh`.
 - Release-tag pushes require Go and reject batches containing different release versions.
