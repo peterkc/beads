@@ -234,9 +234,6 @@ func (*serveIdentityStore) EdgeReader() (issueops.EdgeReader, error) { return se
 func (*serveIdentityStore) GraphCounter() (issueops.GraphCounter, error) {
 	return serveIdentityRole{}, nil
 }
-func (*serveIdentityStore) DetailBatchReader() (issueops.DetailBatchReader, error) {
-	return serveIdentityRole{}, nil
-}
 
 // IssueRelations is the first role added to serveIssueRoles since this stub
 // stopped embedding a nil store, so the comment above it is now a record of the
@@ -300,7 +297,6 @@ type serveIdentityRole struct {
 	issueops.CycleDetector
 	issueops.EdgeReader
 	issueops.GraphCounter
-	issueops.DetailBatchReader
 	issueops.Relations
 	issueops.Commenter
 	issueops.BlockingAnnotator

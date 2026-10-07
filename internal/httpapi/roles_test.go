@@ -106,29 +106,6 @@ func (e *roleEdgeReader) edgeRequests() []issueops.EdgeReadRequest {
 	return append([]issueops.EdgeReadRequest(nil), e.reads...)
 }
 
-type roleDetailBatchReader struct {
-	result issueops.DetailBatchResult
-	err    error
-	mu     sync.Mutex
-	gets   []issueops.DetailBatchRequest
-}
-
-func (r *roleDetailBatchReader) GetBatch(_ context.Context, req issueops.DetailBatchRequest) (issueops.DetailBatchResult, error) {
-	r.mu.Lock()
-	r.gets = append(r.gets, req)
-	r.mu.Unlock()
-	if r.err != nil {
-		return issueops.DetailBatchResult{}, r.err
-	}
-	return r.result, nil
-}
-
-func (r *roleDetailBatchReader) batchRequests() []issueops.DetailBatchRequest {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]issueops.DetailBatchRequest(nil), r.gets...)
-}
-
 // roleGraphCounter is the edge-COUNT role of the store-shaped source, its own
 // fake beside roleEdgeReader rather than a method on it: the two are separate
 // roles with separate accessors, and one fake answering both would let a test
@@ -952,9 +929,6 @@ func rolesConfig(cfg Config) Config {
 	if cfg.GraphCounter == nil {
 		cfg.GraphCounter = &roleGraphCounter{}
 	}
-	if cfg.DetailBatchReader == nil {
-		cfg.DetailBatchReader = &roleDetailBatchReader{}
-	}
 	if cfg.Relations == nil {
 		cfg.Relations = &roleRelations{}
 	}
@@ -1181,11 +1155,6 @@ func TestListenRequiresExactlyOneDatabaseSource(t *testing.T) {
 		// complete source: the set is all-or-nothing rather than a required
 		// pair plus optional extras. A new role adds one line here and one to
 		// rolesConfig, and nothing else in this test.
-		{
-			name:    "no detail batch reader",
-			cfg:     rolesConfigWithout(func(c *Config) { c.DetailBatchReader = nil }),
-			wantErr: "no database source",
-		},
 		{
 			name:    "no reader",
 			cfg:     rolesConfigWithout(func(c *Config) { c.Reader = nil }),

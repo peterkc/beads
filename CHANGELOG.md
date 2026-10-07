@@ -13,10 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Backend implementers must supply the new read role, which returns ordered
   issue details for exact IDs from one snapshot. Existing `Reader.Get` remains
   unchanged.
-- **`GET /v0/beads/issues:batchGet`:** reads the details of 1 to 100 issue IDs
-  in one request, with the same options as `getIssue`. Items keep the request
-  order and repeated IDs; an ID that does not exist is an item with
-  `found: false`, not an error.
 
 ### Changed
 
